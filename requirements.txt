@@ -1,0 +1,2 @@
+six==1.15.0
+transitions==0.8.5
