@@ -4,7 +4,7 @@ import time
 
 HOST = 'localhost'
 PORT = 12345
-# 1 byte = 1 character.
+# 1 byte = 1 character, so 100 should be enough.
 BUFF_SIZE = 100
 
 
@@ -26,7 +26,11 @@ def main():
         print("attempting to accept any connection...")
         client_socket, address = server_socket.accept()
         if client_socket:
-            print(client_socket.recvmsg(BUFF_SIZE))
+            # https://docs.python.org/3.8/library/socket.html#socket.socket.recvmsg
+            # The return value of socket.recvmsg() is a 4-tuple: (data, ancdata, msg_flags, address).
+            # The data is the message
+            data, ancdata, _, _ = client_socket.recvmsg(BUFF_SIZE)
+            print(str(data))
 
 
 if __name__ == '__main__':
