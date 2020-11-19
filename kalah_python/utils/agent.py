@@ -1,46 +1,15 @@
-from typing import Optional, Union
+from typing import Optional, Union, Callable
 from kalah_python.utils.board import Board, Side
-from kalah_python.utils.protocol import Protocol
+from transitions import Machine
 from enum import Enum, auto
 from dataclasses import dataclass
 from overrides import overrides
-
-
-class Turn(Enum):
-    YOU = auto()
-    OPPONENT = auto()
-    END = auto()
-
-
-class State(Enum):
-    INIT = auto()
-    DECIDE_ON_1ST_MOVE = auto()
-    WAIT_FOR_MOVE_RESULT = auto()
-    WAIT_FOR_1ST_MOVE = auto()
-    MAKE_MOVE_OR_SWAP = auto()
-    WAIT_FOR_SWAP_DECISION = auto()
-    DECIDE_ON_MOVE = auto()
-    WAIT_FOR_TURN = auto()
-    FINISHED = auto()
-    # make sure this state is the last one.
-    EXIT = auto()
+import asyncio
 
 
 @dataclass
 class Action:
-    # common attribute for MoveAction & SwapAction
-    state: State
-
-    def validate(self):
-        """
-        make sure you validate your action before executing it.
-        """
-        raise NotImplementedError
-
-    def to_cmd(self) -> str:
-        raise NotImplementedError
-
-    def _validate_state(self):
+    def to_cmd(self) -> bytes:
         raise NotImplementedError
 
 
@@ -50,25 +19,10 @@ class MoveAction(Action):
     hole_idx: int
 
     @overrides
-    def validate(self):
-        self._validate_hole_idx()
-        self._validate_state()
+    def to_cmd(self) -> bytes:
+        return "MOVE;{}\n".format(self.hole_idx).encode('utf8')
 
-    @overrides
-    def to_cmd(self) -> str:
-        return "MOVE;{}\n".format(self.hole_idx)
-
-    @overrides
-    def _validate_state(self):
-        movable_states = (
-            State.DECIDE_ON_1ST_MOVE,
-            State.DECIDE_ON_MOVE,
-            State.MAKE_MOVE_OR_SWAP
-        )
-        if self.state not in movable_states:
-            raise ValueError("cannot from the state:" + self.state.name)
-
-    def _validate_hole_idx(self):
+    def validate_hole_idx(self):
         if self.side == Side.NORTH:
             if self.hole_idx < 0 \
                     or self.hole_idx > Board.HOLES_PER_SIDE - 1:
@@ -85,31 +39,64 @@ class MoveAction(Action):
 class SwapAction(Action):
 
     @overrides
-    def validate(self):
-        self._validate_state()
-
-    @overrides
-    def to_cmd(self) -> str:
-        return "SWAP\n"
-
-    @overrides
-    def _validate_state(self):
-        if self.state != State.MAKE_MOVE_OR_SWAP:
-            raise ValueError("cannot swap from the state:" + self.state.name)
+    def to_cmd(self) -> bytes:
+        return "SWAP\n".encode('utf8')
 
 
 class Agent(object):
+    class State(Enum):
+        INIT = auto()
+        DECIDE_ON_1ST_MOVE = auto()
+        WAIT_FOR_MOVE_RESULT = auto()
+        WAIT_FOR_1ST_MOVE = auto()
+        MAKE_MOVE_OR_SWAP = auto()
+        WAIT_FOR_SWAP_DECISION = auto()
+        DECIDE_ON_MOVE = auto()
+        WAIT_FOR_GAME_STATE = auto()
+        FINISHED = auto()
+        # make sure this state is the last one.
+        EXIT = auto()
     # trigger, source, dest
+    TRANSITIONS = [
+        ['new_match_1st', State.INIT, State.DECIDE_ON_1ST_MOVE],
+        ['new_match_2nd', State.INIT, State.WAIT_FOR_1ST_MOVE],
+        ['moves', State.DECIDE_ON_1ST_MOVE, State.WAIT_FOR_MOVE_RESULT],
+        ['moves', State.MAKE_MOVE_OR_SWAP, State.WAIT_FOR_GAME_STATE],
+        ['moves', State.DECIDE_ON_MOVE, State.WAIT_FOR_GAME_STATE],
+        ['swaps', State.MAKE_MOVE_OR_SWAP, State.WAIT_FOR_GAME_STATE],
+        ['opp_swaps', State.WAIT_FOR_SWAP_DECISION, State.DECIDE_ON_MOVE],
+        ['opp_does_not_swap', State.WAIT_FOR_SWAP_DECISION, State.WAIT_FOR_GAME_STATE],
+        ['game_state_is_opp', State.WAIT_FOR_MOVE_RESULT, State.WAIT_FOR_SWAP_DECISION],
+        ['game_state_is_you', State.WAIT_FOR_1ST_MOVE, State.MAKE_MOVE_OR_SWAP],
+        ['game_state_is_you', State.WAIT_FOR_GAME_STATE, State.DECIDE_ON_MOVE],
+        ['game_state_is_end', State.WAIT_FOR_GAME_STATE, State.FINISHED],
+        # from all states.
+        ['game_over', '*', State.EXIT]
+    ]
+    # triggers. Just class-level type hints for dynamically added attrs
+    # https://stackoverflow.com/a/49052572
+    new_match_1st: Optional[Callable]
+    new_match_2nd: Optional[Callable]
+    moves: Optional[Callable]
+    swaps: Optional[Callable]
+    opp_swaps: Optional[Callable]
+    opp_does_not_swap: Optional[Callable]
+    game_state_is_opp: Optional[Callable]
+    game_state_is_you: Optional[Callable]
+    game_state_is_end: Optional[Callable]
+    game_over: Optional[Callable]
 
-    def __init__(self, protocol: Protocol):
+    # state attribute will be accessible
+    state: State
+
+    def __init__(self):
         # an agent maintains an up-to-date board,
         # the current state of the agent,
         # and the current turn.
         self.board: Board = Board()  # init a (7,7) board
-        self.state: State = State.INIT  # start with initial state.
-        self.protocol: Optional[Protocol] = protocol  # register a protocol
+        self.machine = Machine(model=self, states=Agent.State,
+                               transitions=Agent.TRANSITIONS, initial=Agent.State.INIT)
         self.side: Optional[Side] = None
-        self.turn: Optional[Turn] = None
 
     def decide_on_move_or_swap(self) -> Union[MoveAction, SwapAction]:
         """
@@ -125,97 +112,8 @@ class Agent(object):
         """
         raise NotImplementedError
 
-    def decide_on_swap(self) -> SwapAction:
-        """
-        To be implemented by subclasses
-        :return:
-        """
-        raise NotImplementedError
+    def on_enter_DECIDE_ON_1ST_MOVE(self):
+        self.side = Side.SOUTH
 
-    def start_playing(self, is_south: bool):
-        if is_south:
-            # start playing as a 1st player
-            # 1st player is on the south side
-            self.side = Side.SOUTH
-            self.turn = Turn.YOU
-            self._decide_on_1st_move()
-        else:
-            # start playing as a 2nd player
-            # 2nd player is on the north side
-            self.side = Side.NORTH
-            self.turn = Turn.OPPONENT
-            self._wait_for_1st_move()
-
-    def _execute(self, action: Action):
-        # first, validate the action
-        action.validate()  # exception will be thrown if action is invalid
-        # to execute the action,
-        # send command to the game engine via protocol instance
-        self.protocol.send_cmd(action.to_cmd())
-        # execute the action. The action is either move or swap.
-
-    #  -------------- 1st player state handlers ------------ #
-    def _decide_on_1st_move(self):
-        self.state = State.DECIDE_ON_1ST_MOVE
-        move_action = self.decide_on_move()
-        self._execute(move_action)
-        self._wait_for_move_result()
-
-    def _wait_for_move_result(self):
-        self.state = State.WAIT_FOR_MOVE_RESULT
-        while self.turn == Turn.YOU:
-            # do nothing. just polling the turn
-            pass
-        else:
-            if self.turn == Turn.OPPONENT:
-                self._wait_for_swap_decision()
-            else:
-                raise ValueError("Invalid turn: " + str(self.turn))
-
-    def _wait_for_swap_decision(self):
-        self.state = State.WAIT_FOR_SWAP_DECISION
-        # TODO have to know whether opponent did not swap or not...
-        self._decide_on_move()
-
-    # --------------- 2nd player state handlers -------------- #
-    def _wait_for_1st_move(self):
-        self.state = State.WAIT_FOR_1ST_MOVE
-        while self.turn == Turn.OPPONENT:
-            # do nothing. just polling the turn
-            pass
-        else:
-            if self.turn == Turn.YOU:
-                self._make_move_or_swap()
-            else:
-                raise ValueError("Invalid turn: " + str(self.turn))
-
-    def _make_move_or_swap(self):
-        self.state = State.MAKE_MOVE_OR_SWAP
-        action = self.decide_on_move_or_swap()
-        self._execute(action)
-        self._wait_for_turn()
-
-    # --------------- common state handlers ----------------- #
-    def _decide_on_move(self):
-        self.state = State.DECIDE_ON_MOVE
-        move_action = self.decide_on_move()
-        self._execute(move_action)
-        self._wait_for_turn()
-
-    def _wait_for_turn(self):
-        self.state = State.WAIT_FOR_TURN
-        while self.turn == Turn.OPPONENT:
-            # Just polling the turn.
-            pass
-        else:
-            if self.turn == Turn.YOU:
-                self._decide_on_move()
-            elif self.turn == Turn.END:
-                self._finish_game()
-            else:
-                raise ValueError("Invalid Turn value:" + str(self.turn))
-
-    def _finish_game(self):
-        self.state = State.FINISHED
-        print(self.board)
-        print("game is finished")
+    def on_enter_WAIT_FOR_1ST_MOVE(self):
+        self.side = Side.NORTH
