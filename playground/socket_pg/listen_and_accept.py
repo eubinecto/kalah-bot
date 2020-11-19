@@ -1,15 +1,12 @@
 import socket
-import time
-# code reference: https://stackoverflow.com/questions/1908878/netcat-implementation-in-python
+from config import HOST, PORT
 
-HOST = 'localhost'
-PORT = 12345
 # 1 byte = 1 character, so 100 should be enough.
 BUFF_SIZE = 100
 
 
 def main():
-    global HOST, PORT, BUFF_SIZE
+    global BUFF_SIZE
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server_socket.bind((HOST, PORT))
     # become a server socket
