@@ -1,5 +1,4 @@
 from termcolor import colored
-from typing import List
 import numpy as np
 import enum
 
@@ -14,8 +13,7 @@ class Side(enum.Enum):
         elif self == Side.SOUTH:
             return Side.NORTH
         else:
-            # dummy
-            return Side.NORTH
+            raise ValueError("invalid side:" + str(self))
 
 
 class Board:
@@ -23,7 +21,7 @@ class Board:
     SOUTH_ROW: int = 1
     HOLES_PER_SIDE: int = 7
     SEEDS_PER_HOLE: int = 7
-    # for printing out
+    # for pretty printing board with termcolor module
     NORTH_COLOR: str = 'magenta'
     SOUTH_COLOR: str = 'blue'
 
@@ -35,7 +33,7 @@ class Board:
         # for the north side: self.board[Board.NORTH_ROW, :]
         # the right most column from the player's perspective
         # is the number of seeds in the player's store.
-        self.board = np.array([
+        self._board = np.array([
             [0] + ([self.SEEDS_PER_HOLE] * self.HOLES_PER_SIDE),
             ([self.SEEDS_PER_HOLE] * self.HOLES_PER_SIDE) + [0]
         ])
@@ -50,25 +48,20 @@ class Board:
             # should never get there
             return -1
 
-    def update_board(self, msg: str):
-        """
-        parse the message from the server, and update the current state of
-        the board.
-        here are some example messages from the server:
-        CHANGE;1;7,7,7,7,7,7,7,0,0,8,8,8,8,8,8,1;OPP
-        which means: change has been made as the following.. and the it is OPP's turn.
-
-        :param msg: message from the game server
-        """
-        pass
+    def update_board(self, new_board: np.ndarray):
+        if self._board.shape != new_board.shape:
+            raise ValueError("shape mismatch:{}!={}"
+                             .format(self._board.shape, new_board.shape))
+        # just copy the values into the board from the new board
+        np.copyto(dst=self._board, src=new_board)
 
     @property
     def north_store(self) -> int:
-        return self.board[Board.NORTH_ROW, 0]
+        return self._board[Board.NORTH_ROW, 0]
 
     @property
     def south_store(self) -> int:
-        return self.board[Board.SOUTH_ROW, -1]
+        return self._board[Board.SOUTH_ROW, -1]
 
     def __str__(self) -> str:
         """
@@ -78,12 +71,12 @@ class Board:
         north = colored(
             "N: "
             + "{} -- ".format(self.north_store)
-            + " ".join((str(hole) for hole in self.board[Board.NORTH_ROW, 1:])),
+            + " ".join((str(hole) for hole in self._board[Board.NORTH_ROW, 1:])),
             color=Board.NORTH_COLOR
         )
         south = colored(
             "S: "
-            + " ".join((str(hole) for hole in self.board[Board.SOUTH_ROW, :-1]))
+            + " ".join((str(hole) for hole in self._board[Board.SOUTH_ROW, :-1]))
             + " -- {}".format(self.south_store),
             color=Board.SOUTH_COLOR
         )
