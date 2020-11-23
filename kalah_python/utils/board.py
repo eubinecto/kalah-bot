@@ -48,7 +48,16 @@ class Board:
             # should never get there
             return -1
 
-    def update_board(self, new_board: np.ndarray):
+    def update_board(self, change_msg: str):
+        """
+        :param change_msg: e.g. CHANGE;1;7,7,7,7,7,7,7,0,0,8,8,8,8,8,8,1;YOU
+
+        :return:
+        """
+        board_state = change_msg.split(";")[2]
+        north_state = [int(seed) for seed in board_state.split(",")[:9]]
+        south_state = [int(seed) for seed in board_state.split(",")[9:]]
+        new_board = np.array([north_state, south_state])
         if self._board.shape != new_board.shape:
             raise ValueError("shape mismatch:{}!={}"
                              .format(self._board.shape, new_board.shape))

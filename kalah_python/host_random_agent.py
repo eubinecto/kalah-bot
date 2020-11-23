@@ -16,6 +16,7 @@ class RandomAgent(Agent):
         # you have access to the current status of
         # these states.
         print(self.board)
+        print(self.state)
         print(self.side)
 
     @overrides
@@ -24,6 +25,7 @@ class RandomAgent(Agent):
         # you have access to the current status of
         # these states.
         print(self.board)
+        print(self.state)
         print(self.side)
 
 

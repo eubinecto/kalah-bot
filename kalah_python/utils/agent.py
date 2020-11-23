@@ -4,7 +4,7 @@ from transitions import Machine
 from enum import Enum, auto
 from dataclasses import dataclass
 from overrides import overrides
-import asyncio
+import logging
 
 
 @dataclass
@@ -64,9 +64,9 @@ class Agent(object):
         ['moves', State.MAKE_MOVE_OR_SWAP, State.WAIT_FOR_GAME_STATE],
         ['moves', State.DECIDE_ON_MOVE, State.WAIT_FOR_GAME_STATE],
         ['swaps', State.MAKE_MOVE_OR_SWAP, State.WAIT_FOR_GAME_STATE],
-        ['opp_swaps', State.WAIT_FOR_SWAP_DECISION, State.DECIDE_ON_MOVE],
-        ['opp_does_not_swap', State.WAIT_FOR_SWAP_DECISION, State.WAIT_FOR_GAME_STATE],
+        ['game_state_is_opp', State.WAIT_FOR_SWAP_DECISION, State.WAIT_FOR_GAME_STATE],
         ['game_state_is_opp', State.WAIT_FOR_MOVE_RESULT, State.WAIT_FOR_SWAP_DECISION],
+        ['game_state_is_you', State.WAIT_FOR_SWAP_DECISION, State.DECIDE_ON_MOVE],
         ['game_state_is_you', State.WAIT_FOR_1ST_MOVE, State.MAKE_MOVE_OR_SWAP],
         ['game_state_is_you', State.WAIT_FOR_GAME_STATE, State.DECIDE_ON_MOVE],
         ['game_state_is_end', State.WAIT_FOR_GAME_STATE, State.FINISHED],
@@ -79,8 +79,6 @@ class Agent(object):
     new_match_2nd: Optional[Callable]
     moves: Optional[Callable]
     swaps: Optional[Callable]
-    opp_swaps: Optional[Callable]
-    opp_does_not_swap: Optional[Callable]
     game_state_is_opp: Optional[Callable]
     game_state_is_you: Optional[Callable]
     game_state_is_end: Optional[Callable]
@@ -97,6 +95,7 @@ class Agent(object):
         self.machine = Machine(model=self, states=Agent.State,
                                transitions=Agent.TRANSITIONS, initial=Agent.State.INIT)
         self.side: Optional[Side] = None
+        self.action: Optional[Union[MoveAction, SwapAction]] = None
 
     def decide_on_move_or_swap(self) -> Union[MoveAction, SwapAction]:
         """
@@ -112,8 +111,68 @@ class Agent(object):
         """
         raise NotImplementedError
 
+    def action_is_registered(self) -> bool:
+        return self.action is not None
+
+    def register_action(self, action: Action):
+        if self.action:
+            raise ValueError("an action is already registered.")
+        self.action = action
+
+    def unregister_action(self):
+        if not self.action:
+            raise ValueError("an action is supposed to be registered")
+        del self.action
+        self.action = None
+
+    def commit_action(self):
+        if not self.action_is_registered():
+            raise ValueError("attempted to commit an action which is not registered")
+        # and unregister the action
+        if isinstance(self.action, MoveAction):
+            self.moves()
+        elif isinstance(self.action, SwapAction):
+            self.swaps()
+        else:
+            raise ValueError("Invalid registered action")
+
+    async def wait_for_action(self) -> Action:
+        logger = logging.getLogger("_wait_for_action")
+        # somehow.. wait for the action to be made from the agent?
+        # wait for either agent.move() or agent.swap()
+        logger.info("waiting for an action to be registered...")
+        while True:
+            # Any better approach than polling?
+            # if an action is registered, break the look
+            if self.action_is_registered():
+                break
+        return self.action
+
     def on_enter_DECIDE_ON_1ST_MOVE(self):
+        # 1st player
         self.side = Side.SOUTH
+        # get an action and register
+        action = self.decide_on_move()
+        self.register_action(action)
 
     def on_enter_WAIT_FOR_1ST_MOVE(self):
+        # 2nd player
         self.side = Side.NORTH
+
+    def on_enter_MAKE_MOVE_OR_SWAP(self):
+        # get an action and register
+        action = self.decide_on_move_or_swap()
+        self.register_action(action)
+
+    def on_enter_DECIDE_ON_MOVE(self):
+        # get an action and register
+        action = self.decide_on_move()
+        self.register_action(action)
+
+    def on_enter_FINISHED(self):
+        print("game is finished")
+        print(self.board)
+
+    def on_enter_EXIT(self):
+        print("game was aborted")
+        print(self.board)
