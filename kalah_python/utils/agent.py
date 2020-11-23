@@ -141,6 +141,11 @@ class Agent(object):
         # somehow.. wait for the action to be made from the agent?
         # wait for either agent.move() or agent.swap()
         logger.info("waiting for an action to be registered...")
+        # TODO
+        # this loop is not so good.... it hogs up CPU.
+        # can I do this with interrupt?
+        # use signals instead!
+        # https://docs.python.org/3/library/signal.html
         while True:
             # Any better approach than polling?
             # if an action is registered, break the look

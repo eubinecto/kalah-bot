@@ -55,8 +55,8 @@ class Board:
         :return:
         """
         board_state = change_msg.split(";")[2]
-        north_state = [int(seed) for seed in board_state.split(",")[:9]]
-        south_state = [int(seed) for seed in board_state.split(",")[9:]]
+        north_state = [int(seed) for seed in board_state.split(",")[:8]]
+        south_state = [int(seed) for seed in board_state.split(",")[8:]]
         new_board = np.array([north_state, south_state])
         if self._board.shape != new_board.shape:
             raise ValueError("shape mismatch:{}!={}"

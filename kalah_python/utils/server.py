@@ -49,9 +49,14 @@ class Server:
         :param writer:
         :return:
         """
+        # TODO: rather than doing this, there better be two handlers
+        # one is just interpreting the message
+        # the other is for sending messages to the engine.
+        # and they should run concurrently.
         msg = None
         while msg != 'quit':
             msg = (await reader.read(255)).decode('utf8')
+            print(msg)
             self._handle_msg(msg.strip())
             task = asyncio.create_task(self.agent.wait_for_action())
             await task
