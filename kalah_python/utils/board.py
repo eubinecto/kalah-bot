@@ -1,3 +1,5 @@
+from typing import List
+
 from termcolor import colored
 import numpy as np
 import enum
@@ -48,6 +50,24 @@ class Board:
             # should never get there
             return -1
 
+    def nonzero_indices(self, side: Side) -> List[int]:
+        if side == Side.NORTH:
+            # exclude first idx, which is the store for the north
+            return [
+                idx
+                for idx, hole in enumerate(self.north_holes)
+                if hole != 0
+            ]
+        elif side == Side.SOUTH:
+            # exclude the last idx, which
+            return [
+                idx
+                for idx, hole in enumerate(self.south_holes)
+                if hole != 0
+            ]
+        else:
+            raise ValueError("invalid side:" + str(side))
+
     def update_board(self, change_msg: str):
         """
         :param change_msg: e.g. CHANGE;1;7,7,7,7,7,7,7,0,0,8,8,8,8,8,8,1;YOU
@@ -55,15 +75,24 @@ class Board:
         :return:
         """
         board_state = change_msg.split(";")[2]
-        north_state = [int(seed) for seed in board_state.split(",")[:8]]
+        north_state = reversed([int(seed) for seed in board_state.split(",")[:8]])
         south_state = [int(seed) for seed in board_state.split(",")[8:]]
-        new_board = np.array([north_state, south_state])
+        new_board = np.array([list(north_state), south_state])
         if self._board.shape != new_board.shape:
             raise ValueError("shape mismatch:{}!={}"
                              .format(self._board.shape, new_board.shape))
         # just copy the values into the board from the new board
         np.copyto(dst=self._board, src=new_board)
 
+    def get_store(self, side: Side) -> int:
+        if side == Side.NORTH:
+            return self.north_store
+        elif side == Side.SOUTH:
+            return self.south_store
+        else:
+            raise ValueError("Invalid side:" + str(side))
+
+    # aliases
     @property
     def north_store(self) -> int:
         return self._board[Board.NORTH_ROW, 0]
@@ -71,6 +100,16 @@ class Board:
     @property
     def south_store(self) -> int:
         return self._board[Board.SOUTH_ROW, -1]
+
+    @property
+    def north_holes(self) -> np.ndarray:
+        # this array is flipped reversed to normalise the index with south holes.
+        flipped: np.ndarray = np.flip(self._board[self.idx_of_side(Side.NORTH), 1:])
+        return flipped
+
+    @property
+    def south_holes(self) -> np.ndarray:
+        return self._board[self.idx_of_side(Side.SOUTH), :-1]
 
     def __str__(self) -> str:
         """

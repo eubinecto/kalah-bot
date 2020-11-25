@@ -1,6 +1,6 @@
-from typing import Union
+from typing import Tuple, Dict
 from overrides import overrides
-from kalah_python.utils.agent import Agent, MoveAction, SwapAction
+from kalah_python.utils.agent import Agent, Action, SwapAction, MoveAction
 from kalah_python.utils.server import Server
 from config import HOST, PORT
 
@@ -8,32 +8,23 @@ from config import HOST, PORT
 class UserAgent(Agent):
 
     @overrides
-    def decide_on_move(self) -> MoveAction:
-        """
-        User agent just asks for an input from the user.
-        """
-        # TODO: ...
-        # you have access to the current status of
-        # these states.
+    def decide_on_action(self, possible_actions: Tuple[Action]) -> Action:
+        print("------decide_on_action----")
+        print("It is your turn:")
         print(self.board)
-        print(self.state)
-        print(self.side)
-        hole_idx = int(input("Enter hole_idx:"))
-        return MoveAction(side=self.side, hole_idx=hole_idx)
-
-    @overrides
-    def decide_on_move_or_swap(self) -> Union[MoveAction, SwapAction]:
-        # TODO ...
-        # you have access to the current status of
-        # these states.
-        print(self.board)
-        print(self.state)
-        print(self.side)
-        m_or_s = input("[m]ove or [s]wap?:")
-        if m_or_s == "m":
-            return self.decide_on_move()
-        elif m_or_s == 's':
-            return SwapAction()
+        print("your side:", self.side)
+        options: Dict[str, Action] = dict()
+        for action in possible_actions:
+            if isinstance(action, SwapAction):
+                options['s'] = action
+            elif isinstance(action, MoveAction):
+                options[str(action.hole_idx)] = action
+        for key, action in options.items():
+            print("option[{}]:{}".format(key, action))
+        option_key = None
+        while not options.get(option_key, None):
+            option_key = input("Choose an option:")
+        return options[option_key]
 
 
 def main():

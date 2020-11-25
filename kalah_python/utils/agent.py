@@ -1,4 +1,4 @@
-from typing import Optional, Union, Callable
+from typing import Optional, Union, Callable, List, Tuple
 from kalah_python.utils.board import Board, Side
 from transitions import Machine
 from enum import Enum, auto
@@ -15,24 +15,14 @@ class Action:
 
 @dataclass
 class MoveAction(Action):
-    side: Side
     hole_idx: int
 
     @overrides
     def to_cmd(self) -> bytes:
         return "MOVE;{}\n".format(self.hole_idx).encode('utf8')
 
-    def validate_hole_idx(self):
-        if self.side == Side.NORTH:
-            if self.hole_idx < 0 \
-                    or self.hole_idx > Board.HOLES_PER_SIDE - 1:
-                raise ValueError("Invalid hole_idx for side NORTH:" + str(self.hole_idx))
-        elif self.side == Side.SOUTH:
-            if self.hole_idx < 1 \
-                    or self.hole_idx > Board.HOLES_PER_SIDE:
-                raise ValueError("Invalid hole_idx for side SOUTH:" + str(self.hole_idx))
-        else:
-            raise ValueError("Invalid side:" + self.side.name)
+    def __str__(self) -> str:
+        return "MOVE;{}".format(self.hole_idx)
 
 
 @dataclass
@@ -41,6 +31,9 @@ class SwapAction(Action):
     @overrides
     def to_cmd(self) -> bytes:
         return "SWAP\n".encode('utf8')
+
+    def __str__(self) -> str:
+        return "SWAP"
 
 
 class Agent(object):
@@ -66,6 +59,7 @@ class Agent(object):
         ['swaps', State.MAKE_MOVE_OR_SWAP, State.WAIT_FOR_GAME_STATE],
         ['game_state_is_opp', State.WAIT_FOR_SWAP_DECISION, State.WAIT_FOR_GAME_STATE],
         ['game_state_is_opp', State.WAIT_FOR_MOVE_RESULT, State.WAIT_FOR_SWAP_DECISION],
+        ['game_state_is_opp', State.WAIT_FOR_GAME_STATE, "="],  # reflexive trigger
         ['game_state_is_you', State.WAIT_FOR_SWAP_DECISION, State.DECIDE_ON_MOVE],
         ['game_state_is_you', State.WAIT_FOR_1ST_MOVE, State.MAKE_MOVE_OR_SWAP],
         ['game_state_is_you', State.WAIT_FOR_GAME_STATE, State.DECIDE_ON_MOVE],
@@ -73,6 +67,7 @@ class Agent(object):
         # from all states.
         ['game_over', '*', State.EXIT]
     ]
+
     # triggers. Just class-level type hints for dynamically added attrs
     # https://stackoverflow.com/a/49052572
     new_match_1st: Optional[Callable]
@@ -97,19 +92,31 @@ class Agent(object):
         self.side: Optional[Side] = None
         self.action: Optional[Union[MoveAction, SwapAction]] = None
 
-    def decide_on_move_or_swap(self) -> Union[MoveAction, SwapAction]:
-        """
-        To be implemented by subclasses
-        :return: returns either a move action or a swap action.
-        """
-        raise NotImplementedError
-
-    def decide_on_move(self) -> MoveAction:
+    def decide_on_action(self, options: List[Action]) -> Action:
         """
         To be implemented by subclasses
         :return:
         """
         raise NotImplementedError
+
+    def possible_actions(self) -> List[Action]:
+        if self.side == Side.NORTH:
+            # north is the second player (can choose to swap)
+            actions: List[Action] = [
+                MoveAction(nonzero_idx + 1)
+                # the order should be reversed
+                for nonzero_idx in self.board.nonzero_indices(self.side)
+            ]
+            if self.state == Agent.State.MAKE_MOVE_OR_SWAP:
+                return actions + [SwapAction()]
+            else:
+                return actions
+        elif self.side == Side.SOUTH:
+            # south is the first player, so it can only move.
+            return [
+                MoveAction(nonzero_idx + 1)
+                for nonzero_idx in self.board.nonzero_indices(self.side)
+            ]
 
     def action_is_registered(self) -> bool:
         return self.action is not None
@@ -132,32 +139,24 @@ class Agent(object):
         if isinstance(self.action, MoveAction):
             self.moves()
         elif isinstance(self.action, SwapAction):
-            self.swaps()
+            self.swap_side()  # first swap side
+            self.swaps()  # then trigger
         else:
             raise ValueError("Invalid registered action")
 
-    async def wait_for_action(self) -> Action:
-        logger = logging.getLogger("_wait_for_action")
-        # somehow.. wait for the action to be made from the agent?
-        # wait for either agent.move() or agent.swap()
-        logger.info("waiting for an action to be registered...")
-        # TODO
-        # this loop is not so good.... it hogs up CPU.
-        # can I do this with interrupt?
-        # use signals instead!
-        # https://docs.python.org/3/library/signal.html
-        while True:
-            # Any better approach than polling?
-            # if an action is registered, break the look
-            if self.action_is_registered():
-                break
-        return self.action
+    def swap_side(self):
+        if self.side == Side.NORTH:
+            self.side = Side.SOUTH
+        elif self.side == Side.SOUTH:
+            self.side = Side.NORTH
+        else:
+            raise ValueError("Invalid side:" + str(self.side))
 
     def on_enter_DECIDE_ON_1ST_MOVE(self):
         # 1st player
         self.side = Side.SOUTH
         # get an action and register
-        action = self.decide_on_move()
+        action = self.decide_on_action(self.possible_actions())
         self.register_action(action)
 
     def on_enter_WAIT_FOR_1ST_MOVE(self):
@@ -166,12 +165,12 @@ class Agent(object):
 
     def on_enter_MAKE_MOVE_OR_SWAP(self):
         # get an action and register
-        action = self.decide_on_move_or_swap()
+        action = self.decide_on_action(self.possible_actions())
         self.register_action(action)
 
     def on_enter_DECIDE_ON_MOVE(self):
         # get an action and register
-        action = self.decide_on_move()
+        action = self.decide_on_action(self.possible_actions())
         self.register_action(action)
 
     def on_enter_FINISHED(self):
@@ -181,3 +180,4 @@ class Agent(object):
     def on_enter_EXIT(self):
         print("game was aborted")
         print(self.board)
+
