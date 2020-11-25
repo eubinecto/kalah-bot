@@ -1,10 +1,9 @@
-from typing import Optional, Union, Callable, List, Tuple
+from typing import Optional, Union, Callable, Dict
 from kalah_python.utils.board import Board, Side
 from transitions import Machine
 from enum import Enum, auto
 from dataclasses import dataclass
 from overrides import overrides
-import logging
 
 
 @dataclass
@@ -92,31 +91,22 @@ class Agent(object):
         self.side: Optional[Side] = None
         self.action: Optional[Union[MoveAction, SwapAction]] = None
 
-    def decide_on_action(self, options: List[Action]) -> Action:
+    def decide_on_action(self, options: Dict[str, Action]) -> Action:
         """
         To be implemented by subclasses
         :return:
         """
         raise NotImplementedError
 
-    def possible_actions(self) -> List[Action]:
-        if self.side == Side.NORTH:
-            # north is the second player (can choose to swap)
-            actions: List[Action] = [
-                MoveAction(nonzero_idx + 1)
+    def possible_actions(self) -> Dict[str, Action]:
+        actions = {
+                str(nonzero_idx + 1): MoveAction(nonzero_idx + 1)
                 # the order should be reversed
                 for nonzero_idx in self.board.nonzero_indices(self.side)
-            ]
-            if self.state == Agent.State.MAKE_MOVE_OR_SWAP:
-                return actions + [SwapAction()]
-            else:
-                return actions
-        elif self.side == Side.SOUTH:
-            # south is the first player, so it can only move.
-            return [
-                MoveAction(nonzero_idx + 1)
-                for nonzero_idx in self.board.nonzero_indices(self.side)
-            ]
+        }
+        if self.state == Agent.State.MAKE_MOVE_OR_SWAP:
+            actions['s'] = SwapAction()
+        return actions
 
     def action_is_registered(self) -> bool:
         return self.action is not None
@@ -180,4 +170,3 @@ class Agent(object):
     def on_enter_EXIT(self):
         print("game was aborted")
         print(self.board)
-

@@ -4,6 +4,7 @@ from enum import Enum, auto
 import logging
 from sys import stdout
 logging.basicConfig(stream=stdout, level=logging.INFO)
+# suppress logs from transitions
 transitions_logger = logging.getLogger("transitions.core")
 transitions_logger.setLevel(logging.WARN)
 
@@ -119,10 +120,6 @@ class Server:
         """
         # update the board before raising triggers
         self.agent.board.update_board(change_msg)
-        if change_msg.split(";")[1] == "SWAP":
-            change = "SWAP"
-        else:
-            change = "MOVE;" + change_msg.split(";")[1]
         game_state = change_msg.split(";")[-1]
         if game_state == "YOU":
             self.agent.game_state_is_you()

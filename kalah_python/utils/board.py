@@ -70,8 +70,6 @@ class Board:
 
     def update_board(self, change_msg: str):
         """
-        :param change_msg: e.g. CHANGE;1;7,7,7,7,7,7,7,0,0,8,8,8,8,8,8,1;YOU
-
         :return:
         """
         board_state = change_msg.split(";")[2]
