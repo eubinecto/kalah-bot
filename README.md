@@ -6,6 +6,11 @@ A private repository for COMP34120 AI and Games First Semester Project: building
 In the working directory of the project, try running:
 ```
 java -jar ./kalah/ManKalah.jar "java -jar ./kalah/MKRefAgent.jar" "java -jar ./kalah/JimmyPlayer.jar"
+
+```
+
+or:
+```
 java -jar ./kalah/ManKalah.jar "java -jar ./kalah/MKRefAgent.jar" "nc localhost 12345"
 
 ```
