@@ -20,7 +20,7 @@ Gain familiarity with libraries.
  
 ##Thoughts on deadlines
 - proforma: 26th of November
-- A2C test: (Paul, Eu-Bin)
+
 - Minimax completion: 4th of December (Stefan, Ilia)
 - debug & improve by: 11th of December
 - presentation: 14th of December (might be on 10-13)
@@ -42,3 +42,14 @@ TODO.
 - deadlines. 
 - due tomorrow: proforma: RL Minimax. 
 - due next Monday. 
+
+
+## Resources
+Pytorch tutorial - https://torlenor.org/machine%20learning/reinforcement%20learning/2020/10/23/machine_learning_reinforment_learning_kalah_part1.html
+
+
+
+---
+27th of November
+
+## Minimax
