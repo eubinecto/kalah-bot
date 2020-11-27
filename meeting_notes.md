@@ -52,4 +52,6 @@ Pytorch tutorial - https://torlenor.org/machine%20learning/reinforcement%20learn
 ---
 27th of November
 
-## Minimax
+## RL
+- from 10am to 1pm (London): Eu-bin & Paul work on first attempt to build A3C. 
+
