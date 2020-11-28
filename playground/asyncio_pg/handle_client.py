@@ -1,7 +1,13 @@
 import asyncio
 import logging
 # code reference: https://stackoverflow.com/a/48507121
+from asyncio import Future
+
 from config import HOST, PORT
+
+
+def handle_exception(loop, context):
+    print(context['exception'])
 
 
 async def handle_client(reader, writer):
@@ -22,6 +28,7 @@ def main():
     loop.create_task(asyncio.start_server(handle_client, HOST, PORT))
     try:
         print("running the server forever...")
+        loop.set_exception_handler(handle_exception)
         loop.run_forever()
     except ValueError as ve:
         logger.error(str(ve))

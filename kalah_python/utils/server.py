@@ -6,7 +6,7 @@ from sys import stdout
 logging.basicConfig(stream=stdout, level=logging.INFO)
 # suppress logs from transitions
 transitions_logger = logging.getLogger("transitions.core")
-transitions_logger.setLevel(logging.WARN)
+transitions_logger.setLevel(logging.INFO)
 
 
 class Server:
@@ -20,7 +20,8 @@ class Server:
 
     @staticmethod
     def get_msg_type(msg: str) -> MsgType:
-        print(msg)
+        logger = logging.getLogger("get_msg_type")
+        logger.info(msg)
         if msg.startswith("START;"):
             return Server.MsgType.START
         if msg.startswith("CHANGE;"):
@@ -31,18 +32,24 @@ class Server:
             raise ValueError("Invalid msg:" + msg)
 
     def start_hosting(self, host: str, port: int):
+        logger = logging.getLogger("run")
         loop = asyncio.get_event_loop()
         # create task to the
-        loop.create_task(asyncio.start_server(self._handle_client,
-                                              host, port))
-        logger = logging.getLogger("run")
+        loop.create_task(asyncio.start_server(self._handle_client, host, port))
         try:
             logger.info("running the server...")
+            # exception handling
+            # loop.set_exception_handler(Server.handle_exception)
             loop.run_forever()
         except Exception as ve:
             logger.error(str(ve))
             loop.stop()
             loop.close()
+
+    @staticmethod
+    def handle_exception(loop, context):
+        print(context['exception'])
+        raise Exception
 
     async def _handle_client(self, reader, writer):
         """
@@ -52,18 +59,13 @@ class Server:
         :return:
         """
         logger = logging.getLogger("_handle_client")
-        # TODO: rather than doing this, there better be two handlers
-        # one is just interpreting the message
-        # the other is for sending messages to the engine.
-        # and they should run concurrently.
-        # okay. so what's the problem?
-        # one has to constantly listen to the client <- must not be interrupted.
-        # while at the same time, the other has to send something to client.
         msg = None
-        while msg != 'quit':
-            msg = (await reader.read(255)).decode('utf8')
-            logger.debug(msg)
-            self._handle_msg(msg.strip())
+        while msg != "END":  # while msg is not empty string
+            msg = (await reader.read(255)).decode('utf8').strip()
+            if not msg:
+                raise ConnectionAbortedError("connection is lost from the client")
+            logger.info(msg)
+            self._interpret_msg(msg.strip())
             if self.agent.action_is_registered():  # check if an action is registered.
                 try:
                     # this will fail if the connection is lost
@@ -80,7 +82,7 @@ class Server:
                     await writer.drain()
         writer.close()
 
-    def _handle_msg(self, msg: str):
+    def _interpret_msg(self, msg: str):
         msg_type = self.get_msg_type(msg)
         if msg_type == Server.MsgType.START:
             self._interpret_start_msg(start_msg=msg)
@@ -118,19 +120,21 @@ class Server:
         :param change_msg:
         :return:
         """
+        logger = logging.getLogger("_interpret_change_msg")
         # update the board before raising triggers
         self.agent.board.update_board(change_msg)
-        game_state = change_msg.split(";")[-1]
+        game_state = change_msg.strip().split(";")[-1]
+        logger.info(game_state)
         if game_state == "YOU":
             self.agent.game_state_is_you()
         elif game_state == "OPP":
             self.agent.game_state_is_opp()
-        elif game_state == "END":
+        elif game_state == "END\nEND":
             self.agent.game_state_is_end()
         else:
-            raise ValueError("invalid game_state:" + str(game_state))
+            raise ValueError("invalid game_state:" + game_state)
 
     def _interpret_end_msg(self):
-        print("game is finished")
+        print("------game is finished--------")
         print("your score:", self.agent.board.get_store(self.agent.side))
         print("opponent's score:", self.agent.board.get_store(self.agent.side.opposite()))

@@ -6,4 +6,4 @@ ROOT_DIR = Path(__file__).resolve().parent
 
 # hostname and port number to host the server socket
 HOST = 'localhost'
-PORT = 12345
+PORT = 12346
