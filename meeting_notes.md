@@ -55,3 +55,27 @@ Pytorch tutorial - https://torlenor.org/machine%20learning/reinforcement%20learn
 ## RL
 - from 10am to 1pm (London): Eu-bin & Paul work on first attempt to build A3C. 
 
+
+
+
+---
+30th of November
+
+## The size
+- the size of the model < 1GB
+
+
+## The reward function
+- borrow heuristics for defining rewards.
+- reward = the number of stones in the store.
+- reward = stones in the store on my side - ** on opp side. -> discounted. 
+  - take into the account the enemy
+- winning: very big bonus
+- losing: discourage that.
+- how others have done it?
+- stealing.  : might not need to be a concrete thing.
+  - want to steal, therefore I choose (X), the other way around.
+  
+  
+## training
+- 1st and 2nd.
