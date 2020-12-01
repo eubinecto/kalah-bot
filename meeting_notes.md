@@ -79,3 +79,14 @@ Pytorch tutorial - https://torlenor.org/machine%20learning/reinforcement%20learn
   
 ## training
 - 1st and 2nd.
+
+## the game engine
+- need a virtual environment to simulate the code.
+- copy the java code, translate that into python.
+
+
+## deadline update.
+- ~2nd of December: to have something that is reasonably working~
+- 3rd of December: we complete the engine in python
+- 7th of December: something that is reasonably working (A2C)
+- 11th of December: to complete the agent
