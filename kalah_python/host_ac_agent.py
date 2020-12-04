@@ -1,26 +1,13 @@
-from typing import Dict
-from overrides import overrides
-from kalah_python.utils.agent import Agent, Action
+from kalah_python.utils.agents import ACAgent
 from kalah_python.utils.server import Server
-from config import HOST, PORT
-
-
-class A2CAgent(Agent):
-
-    @overrides
-    def decide_on_action(self, possible_actions: Dict[str, Action]) -> Action:
-        """
-        :param possible_actions:
-        :return:
-        """
-        # load the pretrained model from data. (<1GB)
-        model = ...
-        action = model(self.board)
-        return action
+from config import HOST, PORT, AC_MODEL_PKL_PATH
+import torch
 
 
 def main():
-    server = Server(agent=A2CAgent())
+    # load a pretrained model, and host.
+    ac_model = torch.load(AC_MODEL_PKL_PATH)
+    server = Server(agent=ACAgent(ac_model))
     server.start_hosting(host=HOST, port=PORT)
 
 

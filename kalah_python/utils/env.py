@@ -1,96 +1,123 @@
-from typing import List
-import subprocess
-import torch.nn as nn
-import numpy as np
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from torch.distributions import Categorical
+from typing import Optional
 
-from kalah_python.utils.agent import Agent
+from kalah_python.utils.ac import ActorCritic
+from kalah_python.utils.agents import ACAgent, Action
+from kalah_python.utils.board import Board, Side
+from enum import Enum, auto
 
 
-class ActorCritic(nn.Module):
-    """
-    implements both actor and critic in one model
-    """
-    def __init__(self):
-        super(ActorCritic, self).__init__()
-        # dense layer to learn patterns of the input.
-        # 4: the four numbers that represent the status of the Cart Pole.
-        # 128: hyper parameter; how much hidden units do you want? here it is set to 128.
-        self.affine1: nn.Linear = nn.Linear(4, 128)
-        # actor's layer
-        # 128: it is 128 because that's the dim of the affine layer
-        # 2: Two neurons, two logits. One for the logits of left move. The other for the
-        # logits of right move.
-        self.actor_head: nn.Linear = nn.Linear(128, 2)
-        # critic's layer
-        # just 1 neuron.d
-        self.critic_head: nn.Linear = nn.Linear(128, 1)
-        # action & reward buffer
-        # why do we need to have all of them stored here?
-        self.saved_actions = []
-        self.rewards = []
-
-    def forward(self, x):
-        """
-        forward of both actor and critic
-        """
-        # given the four inputs (the status of the cart pole)
-        x = F.relu(self.affine1(x))
-        # actor: chooses action to take from state s_t
-        # by returning probabilities of each action. (logits are normalised to probs)
-        action_prob = F.softmax(self.actor_head(x), dim=-1)
-        # critic: evaluates being in the state s_t
-        # why is this in plural?
-        state_val = self.critic_head(x)
-        # return values for both actor and critic as a tuple of 2 values:
-        # 1. a list with the probability of each action over the action space
-        # 2. the value from state s_t
-        return action_prob, state_val
+class EnvState(Enum):
+    SOUTH_TURN = auto()
+    NORTH_TURN = auto()
+    GAME_OVER = auto()
 
 
-class Env:
-    # run two instances of `host_ac_agent` on terminal.
+class GameOverError(Exception):
+    pass
+
+
+class KalahEnv:
     # write bash scripts.
-    # java ManKalah.jar.
 
-    def __init__(self, agent1: Agent, agent2: Agent):
-        # instantiate 2 agents
-        self.agent1: Agent = agent1
-        self.agent2: Agent = agent2
-        # reset board
-        # agent 1 play first
-        # while ( game is not over)
-        #   agent 1 or 2 (alternate) chooses action
-        #   action =
-        #   UpdateBoardState(action)
-        pass
-
-    def start_game(self, host_info_1: tuple, host_info_2: tuple):
+    def __init__(self, agent_s: ACAgent, agent_n: ACAgent,
+                 ac_model: ActorCritic):
         """
-        starts the game of two agents..\
-        :param host_info_1:
-        :param host_info_2:
+        :param agent_s: the agent who will play on the south side of the board
+        :param agent_n: the agent who will play on the north side of the board
+        :param ac_model: The Actor-critic model to be used for training.
+        """
+        # instantiate 2 agents
+        self.agent_s: ACAgent = agent_s
+        self.agent_n: ACAgent = agent_n
+        self.ac_model: ActorCritic = ac_model
+        self.env_state: Optional[EnvState] = None
+
+    def start_game(self):
+        """
+        starts the game.
         :return:
         """
-        host_1, port_1 = host_info_1
-        host_2, port_2 = host_info_2
-        bashCommand = "java -jar ./kalah/ManKalah.jar \"nc {} {}\" \"nc {} {}\"".format(
-            host_1, port_1,
-            host_2, port_2
-        )
-        process = subprocess.Popen(bashCommand.split(), stdout=subprocess.PIPE)
-        output, error = process.communicate()
+        self.agent_s.new_match_1st()  # south is the 1st player
+        self.agent_n.new_match_2nd()  # north is the second player
+        self.env_state = EnvState.SOUTH_TURN  # start with south.
+        while self.env_state != EnvState.GAME_OVER:
+            if self.env_state == EnvState.SOUTH_TURN:
+                self.order_agent(self.agent_s)
+            elif self.env_state == EnvState.NORTH_TURN:
+                self.order_agent(self.agent_n)
+            else:
+                raise ValueError("Invalid env_state: " + str(self.env_state))
 
+    def reset(self):
+        """
+        resets the game.
+        :return:
+        """
+        self.agent_s.reset()
+        self.agent_n.reset()
 
-    def step(self):
+    def order_agent(self, ac_agent: ACAgent):
+        """
+        orders the given agent to commit an action.
+        :param ac_agent:
+        :return:
+        """
+        if not ac_agent.action_is_registered():
+            raise ValueError("Action should have been registered, but it is not.")
+        # TODO: make a move.
+        try:
+            self.make_move(board=ac_agent.board,
+                           action=ac_agent.action,
+                           side=ac_agent.side)
+        except GameOverError:
+            self.env_state = EnvState.GAME_OVER
+        else:
+            # make_move was successful.
+            # proceed to commit & unregister the action executed.
+            ac_agent.commit_action()
+            ac_agent.unregister_action()
+            # change the states of the env.
+            if ac_agent.side == Side.SOUTH:
+                self.env_state = EnvState.NORTH_TURN
+            elif ac_agent.side == Side.NORTH:
+                self.env_state = EnvState.SOUTH_TURN
+            else:
+                raise ValueError("invalid ac_agent state:" + str(ac_agent))
+
+    def make_move(self, board: Board, action: Action, side: Side):
         """
         :return: state, reward and done.
         """
         pass
+        # TODO: use Paul's code to implement this method. The code has been commented out for now
+        # side = action.side
+        # if isinstance(action, SwapAction):
+        #     pass
+        #
+        # hole = action.hole_idx
+        # seeds_to_sow = board.seed_on_side(side, hole)
+        # board.set_seeds_in_hole(side, hole, 0)
+        #
+        # holes = board.get_number_of_holes()
+        # receiving_pits = 2 * holes + 1
+        # rounds = seeds_to_sow / receiving_pits
+        # extra = seeds_to_sow % receiving_pits
+        # # sow the seeds of the full rounds (if any):
+        # if rounds != 0:
+        #     for rounds in range(hole, holes + 1):
+        #         board.add_seeds_to_hole(side, hole, rounds)
+        #         board.add_seeds_to_hole(side.opposite(), hole, rounds)
+        #     board.add_seeds_to_store(side, rounds)
+        # # sow the extra seeds
+        # sow_side = side
+        # sow_hole = hole
+        # for extra in reversed(range(1, extra + 1)):
+        #     sow_hole = sow_hole + 1
+        #     if sow_hole == 1: # last pit was a sto  sow_side = sow_side.opposite()
+        #         if sow_hole > holes:
+        #             if sow_side == side:
+        #                 sow_hole = 0
+        #                 board.add_seeds_to_store(side, 1)
 
     # this is only needed if we want to visualise the environment changing as the agent plays out the game
     def render(self):
