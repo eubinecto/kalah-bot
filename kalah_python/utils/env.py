@@ -90,34 +90,42 @@ class KalahEnv:
         """
         pass
         # TODO: use Paul's code to implement this method. The code has been commented out for now
-        # side = action.side
-        # if isinstance(action, SwapAction):
-        #     pass
-        #
-        # hole = action.hole_idx
-        # seeds_to_sow = board.seed_on_side(side, hole)
-        # board.set_seeds_in_hole(side, hole, 0)
-        #
-        # holes = board.get_number_of_holes()
-        # receiving_pits = 2 * holes + 1
-        # rounds = seeds_to_sow / receiving_pits
-        # extra = seeds_to_sow % receiving_pits
-        # # sow the seeds of the full rounds (if any):
-        # if rounds != 0:
-        #     for rounds in range(hole, holes + 1):
-        #         board.add_seeds_to_hole(side, hole, rounds)
-        #         board.add_seeds_to_hole(side.opposite(), hole, rounds)
-        #     board.add_seeds_to_store(side, rounds)
-        # # sow the extra seeds
-        # sow_side = side
-        # sow_hole = hole
-        # for extra in reversed(range(1, extra + 1)):
-        #     sow_hole = sow_hole + 1
-        #     if sow_hole == 1: # last pit was a sto  sow_side = sow_side.opposite()
-        #         if sow_hole > holes:
-        #             if sow_side == side:
-        #                 sow_hole = 0
-        #                 board.add_seeds_to_store(side, 1)
+        side = action.side
+        if action == Action.SWAP:
+            pass
+
+        hole = action.hole_idx
+        seeds_to_sow = board.seed_on_side(side, hole)
+        board.set_seeds_in_hole(side, hole, 0)
+
+        holes = board.get_number_of_holes()
+        receiving_pits = 2 * holes + 1
+        rounds = seeds_to_sow / receiving_pits
+        extra = seeds_to_sow % receiving_pits
+        # sow the seeds of the full rounds (if any):
+        if rounds != 0:
+            for rounds in range(hole, holes + 1):
+                board.add_seeds_to_hole(side, hole, rounds)
+                board.add_seeds_to_hole(side.opposite(), hole, rounds)
+            board.add_seeds_to_store(side, rounds)
+        # sow the extra seeds
+        sow_side = side
+        sow_hole = hole
+        for extra in reversed(range(1, extra + 1)):
+            if sow_side == Side.SOUTH:
+                sow_hole = sow_hole + 1
+                if sow_hole == sow_side.store_idx(sow_side):
+                    board.add_seeds_to_store(sow_side, 1)
+
+
+
+            else:
+                sow_hole = sow_hole - 1
+            if sow_hole == 0: # last pit was a store sow_side = sow_side.opposite()
+                if sow_hole > holes:
+                    if sow_side == side:
+                        sow_hole = 0
+                        board.add_seeds_to_store(side, 1)
 
     # this is only needed if we want to visualise the environment changing as the agent plays out the game
     def render(self):

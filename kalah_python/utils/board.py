@@ -17,6 +17,14 @@ class Side(enum.Enum):
         else:
             raise ValueError("invalid side:" + str(self))
 
+    def store_idx(self) -> int:
+        if self == Side.NORTH:
+            return 0
+        elif self == Side.SOUTH:
+            return 7
+        else:
+            raise ValueError("invalid side:" + str(self))
+
 
 class Board:
     NORTH_ROW: int = 0
@@ -104,7 +112,10 @@ class Board:
             raise ValueError("Invalid side:" + str(side))
 
     def set_seeds_in_store(self, side: Side, seeds: int):
-        pass
+        if side == Side.NORTH or side == Side.SOUTH:
+            self._board[self.idx_of_side(side), side.store_idx()] = seeds
+        else:
+            raise ValueError("Invalid side: " + str(side))
 
     def set_seeds_in_hole(self, side: Side, hole: int, seeds: int):
         pass
@@ -112,8 +123,11 @@ class Board:
     def add_seeds_to_hole(self, side: Side, hole: int, seeds: int):
         pass
 
-    def add_seeds_to_store(self, side: Side, hole: int, seeds: int):
-        pass
+    def add_seeds_to_store(self, side: Side, seeds: int):
+        if side == Side.NORTH or side == Side.SOUTH:
+            self._board[self.idx_of_side(side), side.store_idx()] = self._board[self.idx_of_side(side), side.store_idx()] + seeds
+        else:
+            raise ValueError("Invalid side: " + str(side))
 
     # aliases
     @property
