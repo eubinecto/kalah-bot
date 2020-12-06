@@ -19,7 +19,7 @@ class Actor(nn.Module):
         """
         :param x: input to Actor. Could be states, or features of the states.
         :param action_mask: a tensor representation of the action mask.
-        :return:
+        :return: probability distribution over the possible actions.
         """
         if x.shape == (self.in_size,):  # error handling.
             raise ValueError("shape mismatch:{}!={}".format(x.shape, (self.in_size,)))
@@ -33,7 +33,6 @@ class Actor(nn.Module):
 
 
 class Critic(nn.Module):
-    LINEAR_1_SIZE = 128
 
     def __init__(self, in_size: int):
         super(Critic, self).__init__()
@@ -48,7 +47,7 @@ class Critic(nn.Module):
         # TODO: Qus - Critic is not given any info about the behaviour of Actor.
         #      then How is this a "critique" of the actions?
         y_2 = self.linear_2(y_1)
-        return y_2
+        return y_2  # critique of the states
 
 
 class ActorCritic(nn.Module):

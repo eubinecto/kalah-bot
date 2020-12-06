@@ -260,7 +260,7 @@ class ACAgent(Agent):
         # load the pretrained model from data. (<1GB)
         action_mask = ACAgent.action_mask(possible_actions)
         # get the probabilities for each action.
-        action_probs, _ = self.ac_model.forward(x=from_numpy(self.board.board_mat),
+        action_probs, _ = self.ac_model.forward(x=from_numpy(self.board.board_flat),
                                                 action_mask=from_numpy(action_mask))
         # sample an action according to the prob distribution.
         return ACAgent.sample_action(action_probs)

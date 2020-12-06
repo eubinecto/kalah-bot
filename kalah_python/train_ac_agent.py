@@ -1,6 +1,4 @@
-# this is where algorithm for actor critic
 from dataclasses import dataclass
-from itertools import count
 from typing import List
 
 from kalah_python.utils.ac import ActorCritic
@@ -17,7 +15,7 @@ class SavedAction:
 
 
 # hyper parameters
-EPISODE_STEPS: int = 1000
+NUMBER_OF_EPISODES: int = 1000
 
 # CACHES
 # shortcut for lowercase -> uppercase: cmd + shift + U.
@@ -32,27 +30,29 @@ def main():
     global AGENT_N_SAVED_ACTIONS, \
         AGENT_S_SAVED_ACTIONS, \
         AGENT_N_SAVED_REWARDS, \
-        AGENT_S_SAVED_REWARDS
+        AGENT_S_SAVED_REWARDS, \
+        NUMBER_OF_EPISODES
 
     board = Board()  # the same board is shared by the two agents.
     agent_s = ACAgent(board=board)
     agent_n = ACAgent(board=board)
     ac_model = ActorCritic(state_size=board.board_size, action_size=len(Action))
     env = KalahEnv(agent_s, agent_n, ac_model)  # instantiate a game environment.
-    for i_episode in count(1):  # infinite loop.
+    for episode in range(NUMBER_OF_EPISODES):  # train as much as we can
         # for each episode, reset the env
         env.reset()
-        # start the game. agent_s starts first.
-        env.start_game()
-        while not env.game_is_over():
-            # either agent_s or agent_n makes a move.
-            for episode in range(EPISODE_STEPS):
-                env.make_move()
+        episode_reward = 0
+        # play the game. agent_s starts first.
+        rewards_s, rewards_n = env.play_game()
+        #
+        # model.rewards.append(reward)
+        # episode_reward += reward
+        # TODO: backprop, reward, action selection (sampling). test the engine.
 
     # for each episode in 1000 times
-    #         # reset env (reset agents, reset board)
+    #         # reset env (reset agents, reset boar#d)
     #         #
-    #         # while ( game is not over)
+    #         # while ( game i#s not over)
     #             communicate board state to current turn's agent
     #         #   agent 1 or 2 (alternate) chooses action
     #         #   action = decide_on_action_train(env.possible_actions()., env.model)
@@ -63,6 +63,7 @@ def main():
 if __name__ == '__main__':
     main()
 
+# code adapted from : https://github.com/pytorch/examples/blob/master/reinforcement_learning/actor_critic.py
 # def main_actor_critic():
 #     global ADAM_LR, ARGS, EPISODE_STEPS
 #     # pre-built environment for CartPole. (seems like a hello world of RL)

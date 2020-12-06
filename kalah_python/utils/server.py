@@ -136,5 +136,5 @@ class Server:
 
     def _interpret_end_msg(self):
         print("------game is finished--------")
-        print("your score:", self.agent.board.get_store(self.agent.side))
-        print("opponent's score:", self.agent.board.get_store(self.agent.side.opposite()))
+        print("your score:", self.agent.board.store(self.agent.side))
+        print("opponent's score:", self.agent.board.store(self.agent.side.opposite()))
