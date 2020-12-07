@@ -54,7 +54,7 @@ class Action(Enum):
 
     @overrides
     def __str__(self) -> str:
-        if self == Action.SWAP:
+        if self != Action.SWAP:
             msg = "MOVE;{}".format(self.value)
         else:
             msg = "SWAP"
@@ -104,7 +104,7 @@ class Agent(object):
     game_state_is_you: Callable
     game_state_is_end: Callable
     game_over: Callable
-    reset: Callable
+    reset: Callable  # this trigger is to be used by KalahEnv.
 
     # state attribute will be accessible
     state: State
@@ -128,9 +128,8 @@ class Agent(object):
 
     def possible_actions(self) -> List[Action]:
         actions = [
-                Action(value=nonzero_idx + 1)
-                # the order should be reversed
-                for nonzero_idx in self.board.nonzero_indices(self.side)
+                Action(value=nonzero_hole_idx)
+                for nonzero_hole_idx in self.board.nonzero_holes(self.side)
         ]
         if self.state == Agent.State.MAKE_MOVE_OR_SWAP:
             actions.append(Action.SWAP)
@@ -192,11 +191,11 @@ class Agent(object):
         self.register_action(action)
 
     def on_enter_FINISHED(self):
-        print("game is finished")
+        print("------- game is finished --------")
         print(self.board)
 
     def on_enter_EXIT(self):
-        print("game was aborted")
+        print("------- game was aborted --------")
         print(self.board)
 
 

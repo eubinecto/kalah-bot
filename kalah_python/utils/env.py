@@ -9,19 +9,23 @@ from enum import Enum, auto
 class EnvState(Enum):
     SOUTH_TURN = auto()
     NORTH_TURN = auto()
-    GAME_OVER = auto()
+    GAME_ENDS = auto()
 
 
 class KalahEnv:
     # write bash scripts.
 
-    def __init__(self, agent_s: ACAgent, agent_n: ACAgent,
-                 ac_model: ActorCritic):
+    def __init__(self, board: Board,
+                 agent_s: ACAgent, agent_n: ACAgent,
+                 ac_model: ActorCritic = None):
         """
         :param agent_s: the agent who will play on the south side of the board
         :param agent_n: the agent who will play on the north side of the board
         :param ac_model: The Actor-critic model to be used for training.
         """
+        # keep the reference to the board on environment level as well.
+        # note that this is the same board as those the two agents maintain.
+        self.board = board
         # instantiate 2 agents
         self.agent_s: ACAgent = agent_s
         self.agent_n: ACAgent = agent_n
@@ -30,20 +34,21 @@ class KalahEnv:
 
     def play_game(self) -> float:
         """
-        starts the game.
+        playing a full game, and return a reward.
+        what should be the reward?
         :return:
         """
         self.agent_s.new_match_1st()  # south is the 1st player
         self.agent_n.new_match_2nd()  # north is the second player
         self.env_state = EnvState.SOUTH_TURN  # start with south.
-
-        while self.env_state != EnvState.GAME_OVER:
+        while self.env_state != EnvState.GAME_ENDS:
             if self.env_state == EnvState.SOUTH_TURN:
                 self.order_agent(self.agent_s)
             elif self.env_state == EnvState.NORTH_TURN:
                 self.order_agent(self.agent_n)
             else:
                 raise ValueError("Invalid env_state: " + str(self.env_state))
+            # self.render()
 
         reward = ...
         return reward
@@ -64,14 +69,28 @@ class KalahEnv:
         """
         if not ac_agent.action_is_registered():
             raise ValueError("Action should have been registered, but it is not.")
-        # TODO: make a move.
-        self.env_state = self.make_move(board=ac_agent.board,
+        self.env_state = self.make_move(board=self.board,
                                         action=ac_agent.action,
                                         side=ac_agent.side)
         # make_move was successful.
         # proceed to commit & unregister the action executed.
         ac_agent.commit_action()
         ac_agent.unregister_action()
+        # notify the game state to both agents
+        self.notify_game_state()
+
+    def notify_game_state(self):
+        if self.env_state == EnvState.NORTH_TURN:
+            self.agent_n.game_state_is_you()
+            self.agent_s.game_state_is_opp()
+        elif self.env_state == EnvState.SOUTH_TURN:
+            self.agent_n.game_state_is_opp()
+            self.agent_s.game_state_is_you()
+        elif self.env_state == EnvState.GAME_ENDS:
+            self.agent_n.game_state_is_end()
+            self.agent_s.game_state_is_end()
+        else:
+            raise ValueError("Invalid env_state:" + str(self.env_state))
 
     def game_is_over(self) -> bool:
         return self.env_state == EnvState.GAME_OVER
@@ -115,7 +134,7 @@ class KalahEnv:
                 else:
                     sow_side = sow_side.opposite()
                     sow_hole = 1
-            board.add_seeds_to_hole(sow_side, sow_hole, 1)
+            board.add_seeds_to_hole(sow_hole, sow_side, 1)
 
         # capture:
         if sow_side == side \
@@ -126,25 +145,31 @@ class KalahEnv:
             board.set_hole(sow_hole, side, 0)
             board.set_hole(sow_hole, side.opposite(), 0)
 
-        # game over?
+        # game over (game ends)?
         finished_side = None
-        if not board.nonzero_indices(side):
+        if not board.nonzero_holes(side):
             finished_side = side
-        elif not board.nonzero_indices(side.opposite()):
+        elif not board.nonzero_holes(side.opposite()):
             finished_side = side.opposite()
-        if not finished_side:
+
+        if finished_side:
             seeds = 0
             collecting_side = finished_side.opposite()
             for hole in range(1, holes + 1):
                 seeds = seeds + board.hole(hole, collecting_side)
                 board.set_hole(hole, collecting_side, 0)
             board.add_seeds_to_store(collecting_side, seeds)
-            return EnvState.GAME_OVER
+            # here, we are not returning game over, but returning
+            # game_ends instead.
+            return EnvState.GAME_ENDS
         if side == Side.SOUTH:
             return EnvState.NORTH_TURN
         else:
             return EnvState.SOUTH_TURN
 
-    # this is only needed if we want to visualise the environment changing as the agent plays out the game
     def render(self):
-        pass
+        """
+        this is only needed if we want to visualise the environment changing as the agent plays out the game
+        :return:
+        """
+        print(self.board)

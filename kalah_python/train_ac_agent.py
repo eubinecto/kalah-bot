@@ -47,7 +47,7 @@ def main():
         #
         # model.rewards.append(reward)
         # episode_reward += reward
-        # TODO: backprop, reward, action selection (sampling). test the engine.
+        # TODO: backprop, reward test the engine.
 
     # for each episode in 1000 times
     #         # reset env (reset agents, reset boar#d)

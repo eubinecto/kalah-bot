@@ -51,9 +51,9 @@ class Board:
             raise ValueError("hole_idx is out of range.")
         return 7 - hole_idx + 1
 
-    def nonzero_indices(self, side: Side) -> List[int]:
+    def nonzero_holes(self, side: Side) -> List[int]:
         return [
-            idx
+            idx + 1  # should increment 1.
             for idx, hole in enumerate(self.holes(side))
             if hole != 0
         ]
