@@ -35,6 +35,7 @@ class Board:
     # for pretty printing board with termcolor module
     NORTH_COLOR: str = 'magenta'
     SOUTH_COLOR: str = 'blue'
+    BOARD_SIDE_INIT: np.ndarray = np.array([0] + ([SEEDS_PER_HOLE] * HOLES_PER_SIDE))
 
     def __init__(self):
         """
@@ -42,8 +43,8 @@ class Board:
         """
         # the right most column from the player's perspective
         # is the number of seeds in the player's store.
-        self.north_board: np.ndarray = np.array([0] + ([self.SEEDS_PER_HOLE] * self.HOLES_PER_SIDE))
-        self.south_board: np.ndarray = np.array([0] + ([self.SEEDS_PER_HOLE] * self.HOLES_PER_SIDE))
+        self.north_board: np.ndarray = np.copy(Board.BOARD_SIDE_INIT)
+        self.south_board: np.ndarray = np.copy(Board.BOARD_SIDE_INIT)
 
     @staticmethod
     def opposite_hole_idx(hole_idx: int) -> int:
@@ -79,6 +80,11 @@ class Board:
         # just copy the values into the board from the new board
         np.copyto(dst=self.north_board, src=north_state)
         np.copyto(dst=self.south_board, src=south_state)
+
+    def reset(self):
+        # just copy the init.
+        np.copyto(dst=self.north_board, src=Board.BOARD_SIDE_INIT)
+        np.copyto(dst=self.south_board, src=Board.BOARD_SIDE_INIT)
 
     def store(self, side: Side) -> int:
         """
@@ -132,6 +138,9 @@ class Board:
             return self.south_holes
         else:
             raise ValueError("Invalid side:" + str(side))
+
+    def store_offset(self, side: Side) -> int:
+        return self.store(side) - self.store(side.opposite())
 
     # aliases - getters
     @property

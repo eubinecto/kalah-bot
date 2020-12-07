@@ -21,14 +21,14 @@ class Actor(nn.Module):
         :param action_mask: a tensor representation of the action mask.
         :return: probability distribution over the possible actions.
         """
-        if x.shape == (self.in_size,):  # error handling.
-            raise ValueError("shape mismatch:{}!={}".format(x.shape, (self.in_size,)))
+        if x.shape[0] != self.in_size:  # error handling.
+            raise ValueError("shape mismatch:{}!={}".format(x.shape[0], self.in_size))
         y_1 = F.relu(self.linear_1(x))  # feature extraction from the inputs.
         y_2 = self.linear_2(y_1)  # evaluate logits over the action space.
         # element-wise multiplication of two tensors
         # https://discuss.pytorch.org/t/how-to-do-elementwise-multiplication-of-two-vectors/13182/2
         y_2_masked = y_2 * action_mask  # logits for impossible actions are set to zero. (elem-wise multiplication)
-        y_3 = F.softmax(y_2_masked)  # logits -> probability distributions.
+        y_3 = F.softmax(y_2_masked, dim=0)  # logits -> probability distributions.
         return y_3  # probability distribution over the possible actions.
 
 
@@ -41,8 +41,8 @@ class Critic(nn.Module):
         self.linear_2 = nn.Linear(128, 1)  # critic outputs 1 value.
 
     def forward(self, x: Tensor) -> Tensor:
-        if x.shape == (self.in_size,):  # error handling.
-            raise ValueError("shape mismatch:{}!={}".format(x.shape, (self.in_size,)))
+        if x.shape[0] != self.in_size:  # error handling.
+            raise ValueError("shape mismatch:{}!={}".format(x.shape[0], self.in_size))
         y_1 = F.relu(self.linear_1(x))
         # TODO: Qus - Critic is not given any info about the behaviour of Actor.
         #      then How is this a "critique" of the actions?

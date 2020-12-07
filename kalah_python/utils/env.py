@@ -1,15 +1,26 @@
-from typing import Optional
+from dataclasses import dataclass
+from typing import Optional, Tuple
 
+from config import HyperParams
 from kalah_python.utils.ac import ActorCritic
-from kalah_python.utils.agents import ACAgent, Action
+from kalah_python.utils.agents import ACAgent, Action, SavedAction
 from kalah_python.utils.board import Board, Side
 from enum import Enum, auto
 
 
 class EnvState(Enum):
+    INIT = auto()
     SOUTH_TURN = auto()
     NORTH_TURN = auto()
     GAME_ENDS = auto()
+
+
+@dataclass
+class GameRes:
+    draw: bool
+    winner: Optional[ACAgent] = None
+    loser: Optional[ACAgent] = None
+    win_score: int = 0
 
 
 class KalahEnv:
@@ -17,7 +28,7 @@ class KalahEnv:
 
     def __init__(self, board: Board,
                  agent_s: ACAgent, agent_n: ACAgent,
-                 ac_model: ActorCritic = None):
+                 ac_model: ActorCritic, h_params: HyperParams):
         """
         :param agent_s: the agent who will play on the south side of the board
         :param agent_n: the agent who will play on the north side of the board
@@ -30,9 +41,10 @@ class KalahEnv:
         self.agent_s: ACAgent = agent_s
         self.agent_n: ACAgent = agent_n
         self.ac_model: ActorCritic = ac_model
-        self.env_state: Optional[EnvState] = None
+        self.h_params: HyperParams = h_params
+        self.env_state: EnvState = EnvState.INIT
 
-    def play_game(self) -> float:
+    def play_game(self):
         """
         playing a full game, and return a reward.
         what should be the reward?
@@ -49,17 +61,24 @@ class KalahEnv:
             else:
                 raise ValueError("Invalid env_state: " + str(self.env_state))
             # self.render()
-
-        reward = ...
-        return reward
+        else:
+            self.reward_and_penalise()
 
     def reset(self):
         """
-        resets the game.
-        :return:
+        resets the game environment.
         """
+        # reset signal
         self.agent_s.reset()
         self.agent_n.reset()
+        # reset the board
+        self.board.reset()
+        # the buffers will be cleared in finish episode,
+        # but we clear them here as well, just in case
+        self.agent_n.clear_buffers()
+        self.agent_s.clear_buffers()
+        # reset the env state as well
+        self.env_state = EnvState.INIT
 
     def order_agent(self, ac_agent: ACAgent):
         """
@@ -69,15 +88,59 @@ class KalahEnv:
         """
         if not ac_agent.action_is_registered():
             raise ValueError("Action should have been registered, but it is not.")
-        self.env_state = self.make_move(board=self.board,
-                                        action=ac_agent.action,
-                                        side=ac_agent.side)
+        env_state, reward = self.execute_action(board=self.board,
+                                                 action=ac_agent.action,
+                                                 side=ac_agent.side)
+        self.env_state = env_state
+        ac_agent.reward_buffer.append(reward)
         # make_move was successful.
         # proceed to commit & unregister the action executed.
         ac_agent.commit_action()
         ac_agent.unregister_action()
-        # notify the game state to both agents
-        self.notify_game_state()
+        self.notify_game_state()  # notify the game state to both agents
+
+    def reward_and_penalise(self):
+        """
+        reward the winner, penalise the loser, and penalise both
+        if the game ended in draw.
+        :return:
+        """
+        game_res = self.game_res()
+        if not game_res.draw:  # there was a winner (not a draw).
+            self.reward_winner(game_res.winner)
+            self.penalise_loser(game_res.loser)
+        else:  # the game ended in a draw
+            # penalise both agents, as if they were both losers
+            self.penalise_loser(game_res.winner)
+            self.penalise_loser(game_res.loser)
+
+    def reward_winner(self, winner: ACAgent):
+        for idx, reward in enumerate(winner.reward_buffer):
+            winner.reward_buffer[idx] = self.h_params.BONUS_W * (reward + self.h_params.BONUS_VALUE)
+
+    def penalise_loser(self, loser: ACAgent):
+        for idx, reward in enumerate(loser.reward_buffer):
+            loser.reward_buffer[idx] = -1 * self.h_params.BONUS_W * (reward + self.h_params.BONUS_VALUE)
+
+    def game_res(self) -> GameRes:
+        """
+        returns a reference to the winner agent, with the score. (offset)
+        """
+        if self.env_state != EnvState.GAME_ENDS:  # error handling.
+            raise ValueError("The game should have ended, but it has not.")
+
+        south_offset = self.board.store_offset(self.agent_s.side)
+        if south_offset > 0:
+            # south is the winner
+            return GameRes(draw=False, winner=self.agent_s,
+                           loser=self.agent_n, win_score=south_offset)
+        elif south_offset < 0:
+            # north is the winner
+            return GameRes(draw=False, winner=self.agent_n,
+                           loser=self.agent_s, win_score=(-1 * south_offset))
+        else:
+            # game ended in a draw
+            return GameRes(draw=True)
 
     def notify_game_state(self):
         if self.env_state == EnvState.NORTH_TURN:
@@ -95,15 +158,31 @@ class KalahEnv:
     def game_is_over(self) -> bool:
         return self.env_state == EnvState.GAME_OVER
 
-    @staticmethod
-    def make_move(board: Board, action: Action, side: Side) -> EnvState:
+    def reward(self, side: Side, new_seeds: int) -> float:
+        """
+        return new_seeds_w * new seeds + offset_w * offset(side)
+        :param side:
+        :param new_seeds:
+        :return:
+        """
+        return self.h_params.NEW_SEEDS_W * new_seeds \
+               + self.h_params.OFFSET_W * self.board.store_offset(side)
+
+    def execute_action(self, board: Board, action: Action, side: Side) -> Tuple[EnvState, float]:
         """
         :return: state, reward and done.
         """
         pass
+        seeds_added_to_store = 0
         # TODO: use Paul's code to implement this method. The code has been commented out for now
         if action == Action.SWAP:
-            pass
+            # return current side state, offset
+            # SOUTH_TURN: moves
+            # NORTH_TURN: swaps
+            # then.. it is still NORTH_TURN.
+            # the side has already been changed,so don't have to give it opposite.
+            reward = self.reward(side, seeds_added_to_store)
+            return EnvState.NORTH_TURN, reward
 
         hole = action.value
         seeds_to_sow = board.hole(hole, side)
@@ -130,6 +209,7 @@ class KalahEnv:
                 if sow_side == side:
                     sow_hole = 0
                     board.add_seeds_to_store(sow_side, 1)
+                    seeds_added_to_store += 1
                     continue
                 else:
                     sow_side = sow_side.opposite()
@@ -142,6 +222,7 @@ class KalahEnv:
                 and board.hole(sow_hole, sow_side) == 1\
                 and board.opposite_hole(sow_hole, sow_side) > 0:
             board.add_seeds_to_store(side, 1 + board.opposite_hole(sow_hole, sow_side))
+            seeds_added_to_store += 1 + board.opposite_hole(sow_hole, sow_side)
             board.set_hole(sow_hole, side, 0)
             board.set_hole(sow_hole, side.opposite(), 0)
 
@@ -159,13 +240,16 @@ class KalahEnv:
                 seeds = seeds + board.hole(hole, collecting_side)
                 board.set_hole(hole, collecting_side, 0)
             board.add_seeds_to_store(collecting_side, seeds)
+            seeds_added_to_store += seeds
             # here, we are not returning game over, but returning
-            # game_ends instead.
-            return EnvState.GAME_ENDS
+            # game_ends
+            return EnvState.GAME_ENDS, self.reward(side, seeds_added_to_store)
+
+        # your store minus opponent's store at the move
         if side == Side.SOUTH:
-            return EnvState.NORTH_TURN
+            return EnvState.NORTH_TURN, self.reward(side, seeds_added_to_store)
         else:
-            return EnvState.SOUTH_TURN
+            return EnvState.SOUTH_TURN, self.reward(side, seeds_added_to_store)
 
     def render(self):
         """
