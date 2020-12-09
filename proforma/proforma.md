@@ -13,7 +13,9 @@
 - reference tutorial: [Tackling the game Kalah using reinforcement learning - Part 1](https://torlenor.org/machine%20learning/reinforcement%20learning/2020/10/23/machine_learning_reinforment_learning_kalah_part1.html)
 - have it play kalah against: itself, `RefAgent`, `Jimmy Player`
 - deadlines
-  - 2nd of December: to have something that is reasonably working
+  - ~2nd of December: to have something that is reasonably working~
+  - 3rd of December: we complete the engine in python
+  - 7th of December: something that is reasonably working (A2C)
   - 11th of December: to complete the agent
  
  

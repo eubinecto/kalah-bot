@@ -17,8 +17,17 @@ class Side(enum.Enum):
         else:
             raise ValueError("invalid side:" + str(self))
 
+    def store_idx(self) -> int:
+        if self == Side.NORTH:
+            return 0
+        elif self == Side.SOUTH:
+            return 7
+        else:
+            raise ValueError("invalid side:" + str(self))
+
 
 class Board:
+
     NORTH_ROW: int = 0
     SOUTH_ROW: int = 1
     HOLES_PER_SIDE: int = 7
@@ -26,63 +35,63 @@ class Board:
     # for pretty printing board with termcolor module
     NORTH_COLOR: str = 'magenta'
     SOUTH_COLOR: str = 'blue'
+    BOARD_SIDE_INIT: np.ndarray = np.array([0] + ([SEEDS_PER_HOLE] * HOLES_PER_SIDE))
 
     def __init__(self):
         """
         initialises a (7, 7) board.
         """
-        # for the south side: self.board[Board.SOUTH_ROW, :]
-        # for the north side: self.board[Board.NORTH_ROW, :]
         # the right most column from the player's perspective
         # is the number of seeds in the player's store.
-        self._board = np.array([
-            [0] + ([self.SEEDS_PER_HOLE] * self.HOLES_PER_SIDE),
-            ([self.SEEDS_PER_HOLE] * self.HOLES_PER_SIDE) + [0]
-        ])
+        self.north_board: np.ndarray = np.copy(Board.BOARD_SIDE_INIT)
+        self.south_board: np.ndarray = np.copy(Board.BOARD_SIDE_INIT)
 
     @staticmethod
-    def idx_of_side(side: Side) -> int:
-        if side == Side.NORTH:
-            return Board.NORTH_ROW
-        elif side == Side.SOUTH:
-            return Board.SOUTH_ROW
-        else:
-            # should never get there
-            return -1
+    def opposite_hole_idx(hole_idx: int) -> int:
+        if hole_idx < 1 or hole_idx > 7:  # error check
+            raise ValueError("hole_idx is out of range.")
+        return 7 - hole_idx + 1
 
-    def nonzero_indices(self, side: Side) -> List[int]:
-        if side == Side.NORTH:
-            # exclude first idx, which is the store for the north
-            return [
-                idx
-                for idx, hole in enumerate(self.north_holes)
-                if hole != 0
-            ]
-        elif side == Side.SOUTH:
-            # exclude the last idx, which
-            return [
-                idx
-                for idx, hole in enumerate(self.south_holes)
-                if hole != 0
-            ]
-        else:
-            raise ValueError("invalid side:" + str(side))
+    def nonzero_holes(self, side: Side) -> List[int]:
+        return [
+            idx + 1  # should increment 1.
+            for idx, hole in enumerate(self.holes(side))
+            if hole != 0
+        ]
 
     def update_board(self, change_msg: str):
         """
+        to be used with the server.
+        Not to be used for actor critic.
         :return:
         """
+        #
         board_state = change_msg.split(";")[2]
-        north_state = reversed([int(seed) for seed in board_state.split(",")[:8]])
-        south_state = [int(seed) for seed in board_state.split(",")[8:]]
-        new_board = np.array([list(north_state), south_state])
-        if self._board.shape != new_board.shape:
-            raise ValueError("shape mismatch:{}!={}"
-                             .format(self._board.shape, new_board.shape))
+        north_state = np.array(
+            [int(board_state.split(",")[7])]
+            + [int(seed) for seed in board_state.split(",")[:7]]
+        )  # 1,2,3,4,5,6,7 -- store
+        south_state = np.array(
+            [int(board_state.split(",")[-1])]
+            + [int(seed) for seed in board_state.split(",")[8:-1]]
+        )  # 1,2,3,4,5,6,7 -- store
+        if self.north_board.shape != north_state.shape or self.south_board.shape != south_state.shape:
+            raise ValueError("shape mismatch")
         # just copy the values into the board from the new board
-        np.copyto(dst=self._board, src=new_board)
+        np.copyto(dst=self.north_board, src=north_state)
+        np.copyto(dst=self.south_board, src=south_state)
 
-    def get_store(self, side: Side) -> int:
+    def reset(self):
+        # just copy the init.
+        np.copyto(dst=self.north_board, src=Board.BOARD_SIDE_INIT)
+        np.copyto(dst=self.south_board, src=Board.BOARD_SIDE_INIT)
+
+    def store(self, side: Side) -> int:
+        """
+        returns the current number of stones in the store of the side given.
+        :param side:
+        :return:
+        """
         if side == Side.NORTH:
             return self.north_store
         elif side == Side.SOUTH:
@@ -90,24 +99,102 @@ class Board:
         else:
             raise ValueError("Invalid side:" + str(side))
 
-    # aliases
+    # for adding seeds
+    def add_seeds_to_store(self, side: Side, seeds: int):
+        if side == Side.NORTH:
+            self.north_board[0] += seeds
+        elif side == Side.SOUTH:
+            self.south_board[0] += seeds
+        else:
+            raise ValueError("Invalid side:" + str(side))
+
+    def add_seeds_to_hole(self, hole_idx: int, side: Side, seeds: int):
+        if side == Side.NORTH:
+            self.north_board[hole_idx] += seeds
+        elif side == Side.SOUTH:
+            self.south_board[hole_idx] += seeds
+        else:
+            raise ValueError("Invalid side:" + str(side))
+
+    def hole(self, hole_idx: int, side: Side) -> int:
+        if side == Side.NORTH:
+            return self.north_board[hole_idx]
+        elif side == Side.SOUTH:
+            return self.south_board[hole_idx]
+        else:
+            raise ValueError("Invalid side:" + str(side))
+
+    def opposite_hole(self, hole_idx: int, side: Side) -> int:
+        opposite_hole_idx = Board.opposite_hole_idx(hole_idx)
+        if side == Side.NORTH:
+            return self.hole(opposite_hole_idx, Side.SOUTH)
+        elif side == Side.SOUTH:
+            return self.hole(opposite_hole_idx, Side.NORTH)
+
+    def holes(self, side: Side) -> np.ndarray:
+        if side == Side.NORTH:
+            return self.north_holes
+        elif side == Side.SOUTH:
+            return self.south_holes
+        else:
+            raise ValueError("Invalid side:" + str(side))
+
+    def store_offset(self, side: Side) -> int:
+        return self.store(side) - self.store(side.opposite())
+
+    # aliases - getters
     @property
     def north_store(self) -> int:
-        return self._board[Board.NORTH_ROW, 0]
+        return self.north_board[0]
 
     @property
     def south_store(self) -> int:
-        return self._board[Board.SOUTH_ROW, -1]
+        return self.south_board[0]
 
     @property
     def north_holes(self) -> np.ndarray:
-        # this array is flipped reversed to normalise the index with south holes.
-        flipped: np.ndarray = np.flip(self._board[self.idx_of_side(Side.NORTH), 1:])
-        return flipped
+        """
+        note that this returns a copy
+        :return:
+        """
+        return np.copy(self.north_board[1:])  # omit the store.
 
     @property
     def south_holes(self) -> np.ndarray:
-        return self._board[self.idx_of_side(Side.SOUTH), :-1]
+        """
+        note that this returns the copy.
+        :return:
+        """
+        # better get a copy, just in case you don't mess up things.
+        return np.copy(self.south_board[1:])
+
+    @property
+    def board_size(self) -> int:
+        """
+        returns the number of holes (including the stores)
+        on the board
+        :return:
+        """
+        return self.north_board.size + self.south_board.size
+
+    @property
+    def board_flat(self) -> np.ndarray:
+        """
+        returns a vector (1D) representation of the board.
+        this will be the input to ac model.
+        :return:
+        """
+        # just concatenate the two boards.
+        return np.concatenate((self.north_board, self.south_board))
+
+    #  setters
+    def set_hole(self, hole_idx: int, side: Side, seeds: int):
+        if side == Side.NORTH:
+            self.north_board[hole_idx] = seeds
+        elif side == Side.SOUTH:
+            self.south_board[hole_idx] = seeds
+        else:
+            raise ValueError("Invalid side:" + str(side))
 
     def __str__(self) -> str:
         """
@@ -117,12 +204,12 @@ class Board:
         north = colored(
             "N: "
             + "{} -- ".format(self.north_store)
-            + " ".join((str(hole) for hole in self._board[Board.NORTH_ROW, 1:])),
+            + " ".join((str(hole) for hole in reversed(self.north_holes))),
             color=Board.NORTH_COLOR
         )
         south = colored(
             "S: "
-            + " ".join((str(hole) for hole in self._board[Board.SOUTH_ROW, :-1]))
+            + " ".join((str(hole) for hole in self.south_holes))
             + " -- {}".format(self.south_store),
             color=Board.SOUTH_COLOR
         )

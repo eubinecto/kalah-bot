@@ -1,5 +1,5 @@
 import asyncio
-from kalah_python.utils.agent import Agent
+from kalah_python.utils.agents import Agent
 from enum import Enum, auto
 import logging
 from sys import stdout
@@ -129,12 +129,12 @@ class Server:
             self.agent.game_state_is_you()
         elif game_state == "OPP":
             self.agent.game_state_is_opp()
-        elif game_state == "END\nEND":
+        elif game_state in ("END\nEND" or "END"):
             self.agent.game_state_is_end()
         else:
             raise ValueError("invalid game_state:" + game_state)
 
     def _interpret_end_msg(self):
         print("------game is finished--------")
-        print("your score:", self.agent.board.get_store(self.agent.side))
-        print("opponent's score:", self.agent.board.get_store(self.agent.side.opposite()))
+        print("your score:", self.agent.board.store(self.agent.side))
+        print("opponent's score:", self.agent.board.store(self.agent.side.opposite()))
