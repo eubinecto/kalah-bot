@@ -252,10 +252,10 @@ class UserAgent(Agent):
 
 class GameNode:
 
-    def __init__(self, board, player, depth: int, moves=None):
+    def __init__(self, board, player, moves=None):
         self.board = board
         self.player = player
-        self.depth = depth
+        self.depth = 0
         self.moves = moves
         self.next = None
         self.value = 0
@@ -266,9 +266,19 @@ class GameNode:
     def move(self, move):
         node = self
         simulate_move(self, move, node)
+        actions = [
+            Action(value=nonzero_hole_idx)
+            for nonzero_hole_idx in self.board.nonzero_holes(node.player)
+        ]
+        node.moves = actions
 
     def maximizing(self, side):
-        return self.player == side
+
+        if self.player == side:
+            return True
+        else:
+            return False
+
 
     def over(self):
         return self.is_over
@@ -287,7 +297,7 @@ class GameNode:
 
 def simulate_move(self, action: Action, node: GameNode) -> GameNode:
     """
-        :return: GameNoe.
+        :return: GameNode.
         """
     pass
     board = node.board
@@ -412,9 +422,12 @@ class MiniMaxAgent(Agent):
     # https://towardsdatascience.com/dont-use-recursion-in-python-any-more-918aad95094c
     def choose_mini_max_move(self, gnode, max_depth=3):
         "Choose bestMove for gnode along w final value"
-        if int(gnode.depth) < max_depth and not gnode.over():
+        print("IN THE MINIMAX FUNCTION WITH GNODE:")
+        print(gnode.depth)
+        if gnode.depth <= max_depth and not gnode.over():
             for move in gnode.moves:
-                nxt_gnode = GameNode(gnode.board, gnode.player, gnode.depth + 1)
+                nxt_gnode = GameNode(gnode.board, gnode.player)
+                nxt_gnode.depth = gnode.depth + 1
                 nxt_gnode.move(move)
                 self.choose_mini_max_move(nxt_gnode, max_depth)  # recursion here
                 keep = (gnode.next is None)  # 1st of sequence
@@ -442,7 +455,7 @@ class MiniMaxAgent(Agent):
         print("-------DEV------------")
         print("Your side is:")
         print(self.side)
-        root = GameNode(self.board, self.side, 2, possible_actions)
+        root = GameNode(self.board, self.side, possible_actions)
         root.best_move = Action.SWAP
         returned_state = self.choose_mini_max_move(root)
         print(returned_state)
