@@ -6,6 +6,7 @@ from torch.distributions import Categorical
 
 from kalah_python.utils.ac import ActorCritic
 from kalah_python.utils.board import Board, Side
+from kalah_python.utils.gamenode import GameNode
 from transitions import Machine
 from enum import Enum, auto
 from overrides import overrides
@@ -83,6 +84,7 @@ class Agent(object):
         FINISHED = auto()
         # make sure this state is the last one.
         EXIT = auto()
+
     # trigger, source, dest
     TRANSITIONS = [
         ['new_match_1st', State.INIT, State.DECIDE_ON_1ST_MOVE],
@@ -137,8 +139,8 @@ class Agent(object):
 
     def possible_actions(self) -> List[Action]:
         actions = [
-                Action(value=nonzero_hole_idx)
-                for nonzero_hole_idx in self.board.nonzero_holes(self.side)
+            Action(value=nonzero_hole_idx)
+            for nonzero_hole_idx in self.board.nonzero_holes(self.side)
         ]
         if self.state == Agent.State.MAKE_MOVE_OR_SWAP:
             actions.append(Action.SWAP)
@@ -249,10 +251,80 @@ class UserAgent(Agent):
         return options[option_key]
 
 
+class MiniMaxAgent(Agent):
+    #   def chooseMiniMaxMove(NodeClass, gnode, maxDepth=6):
+    #       "Choose bestMove for gnode along w final value"
+    #       if gnode.depth < maxDepth and not gnode.over():
+    #           for move in gnode.moves:
+    #               nxtGnode = NodeClass(gnode.board, gnode.player, gnode.depth + 1)
+    #               nxtGnode.move(move)
+    #               chooseMiniMaxMove(NodeClass, nxtGnode, maxDepth)  # recursion here
+    #               keep = (gnode.next == None)  # 1st of sequence
+    #               if gnode.maximizing():
+    #                   if keep or nxtGnode.value > gnode.value:
+    #                       gnode.value = nxtGnode.value
+    #                       gnode.next = nxtGnode
+    #                       gnode.bestMove = move
+    #               else:
+    #                   if keep or nxtGnode.value < gnode.value:
+    #                       gnode.value = nxtGnode.value
+    #                       gnode.next = nxtGnode
+    #                       gnode.bestMove = move
+    #       return gnode
+    # TODO: Consider python closure instead of recursion to improve the time per move
+    # https://towardsdatascience.com/dont-use-recursion-in-python-any-more-918aad95094c
+    def choose_mini_max_move(self, gnode, max_depth=2):
+        "Choose bestMove for gnode along w final value"
+        if gnode.depth < max_depth and not gnode.over():
+            for move in gnode.moves:
+                nxt_gnode = GameNode(gnode.board, gnode.player, gnode.depth + 1)
+                nxt_gnode.move(move)
+                self.choose_mini_max_move(nxt_gnode, max_depth)  # recursion here
+                keep = (gnode.next is None)  # 1st of sequence
+                if gnode.maximizing(self.side):
+                    if keep or nxt_gnode.value() > gnode.value():
+                        gnode.value = nxt_gnode.value()
+                        gnode.next = nxt_gnode
+                        gnode.bestMove = move
+                else:
+                    if keep or nxt_gnode.value() < gnode.value():
+                        gnode.value = nxt_gnode.value()
+                        gnode.next = nxt_gnode
+                        gnode.bestMove = move
+        return gnode
+
+    @overrides
+    def decide_on_action(self, possible_actions: List[Action], **kwargs) -> Action:
+        """
+                :param possible_actions:
+                :return:
+                """
+        print("------decide_on_action----")
+        print("It is your turn:")
+        print(self.board)
+        print("-------DEV------------")
+        root = GameNode(self.board, self.side, possible_actions, 0)
+        self.choose_mini_max_move(self, root)
+        print(root)
+        print("-------END------------")
+        print("your side:", self.side)
+        options = {
+            str(action.value): action
+            for action in possible_actions
+        }
+        for option, action in options.items():
+            print("[{}]:{}".format(option, str(action)))
+        option_key = None
+        while not options.get(option_key, None):
+            option_key = input("Choose an option:")
+        return options[option_key]
+
+
 class ACAgent(Agent):
     """
     Actor-Critic agent.
     """
+
     @overrides
     def __init__(self, ac_model: ActorCritic, board: Board = None):
         super(ACAgent, self).__init__(board=board)
