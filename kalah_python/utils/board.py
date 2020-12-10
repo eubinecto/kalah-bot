@@ -1,5 +1,4 @@
 from typing import List
-
 from termcolor import colored
 import numpy as np
 import enum
@@ -80,6 +79,7 @@ class Board:
         # just copy the values into the board from the new board
         np.copyto(dst=self.north_board, src=north_state)
         np.copyto(dst=self.south_board, src=south_state)
+
 
     def reset(self):
         # just copy the init.
