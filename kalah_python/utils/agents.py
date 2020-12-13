@@ -12,6 +12,7 @@ from overrides import overrides
 import random
 from torch import Tensor
 import torch
+import copy
 
 
 class Action(Enum):
@@ -428,30 +429,30 @@ class MiniMaxAgent(Agent):
     #                       gnode.next = nxtGnode
     #                       gnode.bestMove = move
     #       return gnode
-    # TODO: Consider python closure instead of recursion to improve the time per move
-    # https://towardsdatascience.com/dont-use-recursion-in-python-any-more-918aad95094c
-    def choose_mini_max_move(self, gnode, max_depth=2):
+
+    def choose_mini_max_move(self, gnode, max_depth=1):
         "Choose bestMove for gnode along w final value"
         print("IN THE MINIMAX FUNCTION WITH GNODE:")
         print(f"DEPTH: {gnode.depth}")
         print(f"Player: {gnode.player}")
         print(f"Value: {gnode.value}")
         print(f"Moves: {gnode.moves}")
+        print(f"Board: {gnode.board}")
         if gnode.depth <= max_depth and not gnode.over():
             for move in gnode.moves:
-                nxt_gnode = GameNode(gnode.board, gnode.player)
+                nxt_gnode = copy.deepcopy(gnode)
                 nxt_gnode.depth = gnode.depth + 1
                 print(f"Calling with the Move:{move}")
                 nxt_gnode.move(move)
                 self.choose_mini_max_move(nxt_gnode, max_depth)  # recursion here
                 keep = (gnode.next is None)  # 1st of sequence
                 if gnode.maximizing(self.side):
-                    if keep or nxt_gnode.value < gnode.value:
+                    if keep or nxt_gnode.value > gnode.value:
                         gnode.value = nxt_gnode.value
                         gnode.next = nxt_gnode
                         gnode.best_move = move
                 else:
-                    if keep or nxt_gnode.value > gnode.value:
+                    if keep or nxt_gnode.value < gnode.value:
                         gnode.value = nxt_gnode.value
                         gnode.next = nxt_gnode
                         gnode.best_move = move
