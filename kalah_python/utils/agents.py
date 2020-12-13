@@ -270,7 +270,7 @@ class GameNode:
             Action(value=nonzero_hole_idx)
             for nonzero_hole_idx in self.board.nonzero_holes(node.player)
         ]
-        node.moves = actions
+        self.moves = actions
 
     def maximizing(self, side):
 
@@ -281,6 +281,8 @@ class GameNode:
 
 
     def over(self):
+        if len(self.moves) < 1:
+            self.is_over = True
         return self.is_over
 
     def __str__(self):
@@ -299,7 +301,6 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
     """
         :return: GameNode.
         """
-    pass
     board = node.board
     side = node.player
 
@@ -331,6 +332,7 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
     # sow the extra seeds
     sow_side = side
     sow_hole = hole
+    last_seed_in_store = False
     for extra in reversed(range(1, extra + 1)):
         sow_hole = sow_hole + 1
         if sow_hole == 1:  # last pit was a store sow_side = sow_side.opposite()
@@ -340,6 +342,9 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
                 sow_hole = 0
                 board.add_seeds_to_store(sow_side, 1)
                 seeds_added_to_store += 1
+                #if the last seed goes it the store than we get another move
+                if extra == 1:
+                    last_seed_in_store = True
                 continue
             else:
                 sow_side = sow_side.opposite()
@@ -347,6 +352,7 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
         board.add_seeds_to_hole(sow_hole, sow_side, 1)
 
     # capture:
+    capture_flag = False
     if sow_side == side \
             and sow_hole > 0 \
             and board.hole(sow_hole, sow_side) == 1 \
@@ -355,6 +361,7 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
         seeds_added_to_store += 1 + board.opposite_hole(sow_hole, sow_side)
         board.set_hole(sow_hole, side, 0)
         board.set_hole(sow_hole, side.opposite(), 0)
+        capture_flag = True
 
     # game over (game ends)?
     finished_side = None
@@ -390,11 +397,14 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
         for nonzero_hole_idx in board.nonzero_holes(node.player)
     ]
     node.moves = actions
-    if side == Side.SOUTH:
-        node.player = side.NORTH
-        return node
+    if not capture_flag and not last_seed_in_store:
+        if side == Side.SOUTH:
+            node.player = side.NORTH
+            return node
+        else:
+            node.player = side.SOUTH
+            return node
     else:
-        node.player = side.SOUTH
         return node
 
 
@@ -420,24 +430,28 @@ class MiniMaxAgent(Agent):
     #       return gnode
     # TODO: Consider python closure instead of recursion to improve the time per move
     # https://towardsdatascience.com/dont-use-recursion-in-python-any-more-918aad95094c
-    def choose_mini_max_move(self, gnode, max_depth=3):
+    def choose_mini_max_move(self, gnode, max_depth=2):
         "Choose bestMove for gnode along w final value"
         print("IN THE MINIMAX FUNCTION WITH GNODE:")
-        print(gnode.depth)
+        print(f"DEPTH: {gnode.depth}")
+        print(f"Player: {gnode.player}")
+        print(f"Value: {gnode.value}")
+        print(f"Moves: {gnode.moves}")
         if gnode.depth <= max_depth and not gnode.over():
             for move in gnode.moves:
                 nxt_gnode = GameNode(gnode.board, gnode.player)
                 nxt_gnode.depth = gnode.depth + 1
+                print(f"Calling with the Move:{move}")
                 nxt_gnode.move(move)
                 self.choose_mini_max_move(nxt_gnode, max_depth)  # recursion here
                 keep = (gnode.next is None)  # 1st of sequence
                 if gnode.maximizing(self.side):
-                    if keep or nxt_gnode.value > gnode.value:
+                    if keep or nxt_gnode.value < gnode.value:
                         gnode.value = nxt_gnode.value
                         gnode.next = nxt_gnode
                         gnode.best_move = move
                 else:
-                    if keep or nxt_gnode.value < gnode.value:
+                    if keep or nxt_gnode.value > gnode.value:
                         gnode.value = nxt_gnode.value
                         gnode.next = nxt_gnode
                         gnode.best_move = move
