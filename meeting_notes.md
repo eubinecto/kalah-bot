@@ -90,3 +90,9 @@ Pytorch tutorial - https://torlenor.org/machine%20learning/reinforcement%20learn
 - 3rd of December: we complete the engine in python
 - 7th of December: something that is reasonably working (A2C)
 - 11th of December: to complete the agent
+
+
+---
+14th of Dec
+
+## the rewards must be non-negative!

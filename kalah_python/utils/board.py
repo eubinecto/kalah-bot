@@ -122,6 +122,20 @@ class Board:
     def store_offset(self, side: Side) -> int:
         return self.store(side) - self.store(side.opposite())
 
+    def board_flat(self, side: Side) -> np.ndarray:
+        """
+        returns a vector (1D) representation of the board.
+        note that the order is: (your_side, opp_side)
+        :return:
+        """
+        # just concatenate the two boards.
+        if side == Side.NORTH:
+            return np.concatenate((self.north_board, self.south_board))
+        elif side == Side.SOUTH:
+            return np.concatenate((self.south_board, self.north_board))
+        else:
+            raise ValueError("Invalid error: " + str(side))
+
     # aliases - getters
     @property
     def north_store(self) -> int:
@@ -156,16 +170,6 @@ class Board:
         :return:
         """
         return self.north_board.size + self.south_board.size
-
-    @property
-    def board_flat(self) -> np.ndarray:
-        """
-        returns a vector (1D) representation of the board.
-        this will be the input to ac model.
-        :return:
-        """
-        # just concatenate the two boards.
-        return np.concatenate((self.north_board, self.south_board))
 
     #  setters
     def set_hole(self, hole_idx: int, side: Side, seeds: int):

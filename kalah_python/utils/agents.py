@@ -27,7 +27,7 @@ class Agent(object):
         ['game_state_is_you', AgentState.WAIT_FOR_1ST_MOVE, AgentState.MAKE_MOVE_OR_SWAP],
         ['game_state_is_you', AgentState.WAIT_FOR_GAME_STATE, AgentState.DECIDE_ON_MOVE],
         ['game_state_is_end', AgentState.WAIT_FOR_GAME_STATE, AgentState.FINISHED],
-        # from all states.
+        # trigger from all states.
         ['game_over', '*', AgentState.EXIT],
         ['reset', '*', AgentState.INIT]
     ]
@@ -203,33 +203,24 @@ class ACAgent(Agent):
         :param possible_actions:
         :return:
         """
+        print("------decide on action------")
+        print(self.board)
+        print("side:" + str(self.side))
         # load the pretrained model from data. (<1GB)
         action_mask = self.action_mask(possible_actions)
-        states = torch.tensor(self.states, dtype=torch.float32)  # board (flattened) representation
+        states = torch.tensor(self.board.board_flat(self.side), dtype=torch.float32)  # board (flattened) representation
         action_mask = torch.tensor(action_mask, dtype=torch.float32)  # mask impossible actions
         probs, critique = self.ac_model.forward(states, action_mask)  # prob. dist over the actions, critique on states
         action, logit, prob = self.sample_action(probs)
         if self.buffer:
             self.saved_action_buffer.append(SavedAction(logit, prob, critique, action))
         # sample an action according to the prob distribution.
+        print("next action:" + str(action))
         return action
-
-    @property
-    def states(self) -> np.ndarray:
-        """
-        add one-hot encoded info for the side the agent is in
-        """
-        if self.side == Side.NORTH:
-            return np.concatenate((self.board.board_flat, np.array([1])))
-        elif self.side == Side.SOUTH:
-            return np.concatenate((self.board.board_flat, np.array([0])))
-        else:
-            raise ValueError("Invalid side:" + str(self.side))
 
     @staticmethod
     def sample_action(action_probs: torch.Tensor) -> Tuple[Action, torch.Tensor, torch.Tensor]:
         m = Categorical(action_probs)
-        # TODO: make sure you don't sample actions with near-zero prob.
         # sample an index to an action (an index to action_probs)
         action: torch.Tensor = m.sample()
         if action.item() == 7:
@@ -245,7 +236,6 @@ class ACAgent(Agent):
         :param possible_actions:
         :return:
         """
-        # TODO: action mask is not working..
         all_actions = Action.all_actions()
         return np.array([
             # if the action is possible, set the value to 1. if not, set
@@ -257,3 +247,6 @@ class ACAgent(Agent):
     def clear_buffers(self):
         del self.reward_buffer[:]
         del self.saved_action_buffer[:]
+
+    def __str__(self) -> str:
+        return str(self.side)
