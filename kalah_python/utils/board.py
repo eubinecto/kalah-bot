@@ -139,8 +139,22 @@ class Board:
         else:
             raise ValueError("Invalid side:" + str(side))
 
+    def get_hoard_side_value(self, side: Side):
+        value = 0
+        if side == Side.NORTH:
+            for seeds in self.north_holes:
+                value += seeds
+        elif side == Side.SOUTH:
+            for seeds in self.south_holes:
+                value += seeds
+        else:
+            raise ValueError("Invalid side:" + str(side))
+        return value
+
     def store_offset(self, side: Side) -> int:
         return self.store(side) - self.store(side.opposite())
+
+
 
     # aliases - getters
     @property

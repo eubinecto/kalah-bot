@@ -259,7 +259,7 @@ class GameNode:
         self.depth = 0
         self.moves = moves
         self.next = None
-        self.value = 0
+        self.value = 0.0
         self.best_move = None
         self.is_over = False
 
@@ -279,7 +279,6 @@ class GameNode:
             return True
         else:
             return False
-
 
     def over(self):
         if len(self.moves) < 1:
@@ -343,7 +342,7 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
                 sow_hole = 0
                 board.add_seeds_to_store(sow_side, 1)
                 seeds_added_to_store += 1
-                #if the last seed goes it the store than we get another move
+                # if the last seed goes it the store than we get another move
                 if extra == 1:
                     last_seed_in_store = True
                 continue
@@ -371,6 +370,7 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
     elif not board.nonzero_holes(side.opposite()):
         finished_side = side.opposite()
 
+    capture_value = 0
     if finished_side:
         seeds = 0
         collecting_side = finished_side.opposite()
@@ -381,7 +381,15 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
         seeds_added_to_store += seeds
         # here, we are not returning game over, but returning
         # game_ends
-        node.value = seeds_added_to_store
+        # TODO  Have a method to calculate the value
+
+        if capture_flag or last_seed_in_store:
+            if capture_flag:
+                capture_value = 25
+            else:
+                capture_value = 15
+        node.value = 0.25 * board.store_offset(node.player) + 0.8 * capture_value + seeds_added_to_store
+        node.value += 0.3 * board.get_hoard_side_value(node.player)
         node.is_over = True
         actions = [
             Action(value=nonzero_hole_idx)
@@ -390,9 +398,14 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
         node.moves = actions
         return node
 
-    # your store minus opponent's store at the move
+    # TODO Use the value method here as well
     node.board = board
-    node.value = seeds_added_to_store
+
+    if capture_flag or last_seed_in_store:
+        capture_value = 20
+    node.value = 0.25 * board.store_offset(node.player) + 0.8 * capture_value + seeds_added_to_store
+    node.value += 0.3 * board.get_hoard_side_value(node.player)
+
     actions = [
         Action(value=nonzero_hole_idx)
         for nonzero_hole_idx in board.nonzero_holes(node.player)
@@ -410,27 +423,8 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
 
 
 class MiniMaxAgent(Agent):
-    #   def chooseMiniMaxMove(NodeClass, gnode, maxDepth=6):
-    #       "Choose bestMove for gnode along w final value"
-    #       if gnode.depth < maxDepth and not gnode.over():
-    #           for move in gnode.moves:
-    #               nxtGnode = NodeClass(gnode.board, gnode.player, gnode.depth + 1)
-    #               nxtGnode.move(move)
-    #               chooseMiniMaxMove(NodeClass, nxtGnode, maxDepth)  # recursion here
-    #               keep = (gnode.next == None)  # 1st of sequence
-    #               if gnode.maximizing():
-    #                   if keep or nxtGnode.value > gnode.value:
-    #                       gnode.value = nxtGnode.value
-    #                       gnode.next = nxtGnode
-    #                       gnode.bestMove = move
-    #               else:
-    #                   if keep or nxtGnode.value < gnode.value:
-    #                       gnode.value = nxtGnode.value
-    #                       gnode.next = nxtGnode
-    #                       gnode.bestMove = move
-    #       return gnode
 
-    def choose_mini_max_move(self, gnode, max_depth=1):
+    def choose_mini_max_move(self, gnode, max_depth=3, alpha = -9999.0, beta = 9999):
         "Choose bestMove for gnode along w final value"
         print("IN THE MINIMAX FUNCTION WITH GNODE:")
         print(f"DEPTH: {gnode.depth}")
@@ -448,14 +442,24 @@ class MiniMaxAgent(Agent):
                 keep = (gnode.next is None)  # 1st of sequence
                 if gnode.maximizing(self.side):
                     if keep or nxt_gnode.value > gnode.value:
+                        max_evaluation = -999.0
                         gnode.value = nxt_gnode.value
                         gnode.next = nxt_gnode
                         gnode.best_move = move
+                        max_evaluation = max(max_evaluation, gnode.value)
+                        alpha = max(alpha, gnode.value)
+                        if beta <= alpha:
+                            break
                 else:
                     if keep or nxt_gnode.value < gnode.value:
+                        min_evaluation = 999.0
                         gnode.value = nxt_gnode.value
                         gnode.next = nxt_gnode
                         gnode.best_move = move
+                        min_evaluation = min(min_evaluation, gnode.value)
+                        beta = min(beta, gnode.value)
+                        if beta <= alpha:
+                            break
         return gnode
 
     @overrides
