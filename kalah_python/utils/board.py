@@ -2,28 +2,8 @@ from typing import List
 
 from termcolor import colored
 import numpy as np
-import enum
 
-
-class Side(enum.Enum):
-    NORTH = enum.auto()
-    SOUTH = enum.auto()
-
-    def opposite(self) -> 'Side':
-        if self == Side.NORTH:
-            return Side.SOUTH
-        elif self == Side.SOUTH:
-            return Side.NORTH
-        else:
-            raise ValueError("invalid side:" + str(self))
-
-    def store_idx(self) -> int:
-        if self == Side.NORTH:
-            return 0
-        elif self == Side.SOUTH:
-            return 7
-        else:
-            raise ValueError("invalid side:" + str(self))
+from kalah_python.utils.enums import Side
 
 
 class Board:
