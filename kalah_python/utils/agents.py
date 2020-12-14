@@ -3,6 +3,7 @@ from typing import Optional, Callable, List, Tuple
 
 import numpy as np
 from torch.distributions import Categorical
+from functools import lru_cache
 
 from kalah_python.utils.ac import ActorCritic
 from kalah_python.utils.board import Board, Side
@@ -390,6 +391,12 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
                 capture_value = 15
         node.value = 0.25 * board.store_offset(node.player) + 0.8 * capture_value + seeds_added_to_store
         node.value += 0.3 * board.get_hoard_side_value(node.player)
+        if action.value < 4:
+            node.value += 2
+        if side == Side.SOUTH:
+            node.value -= 0.1 * board.store(Side.NORTH)
+        else:
+            node.value -= 0.1 * board.store(Side.SOUTH)
         node.is_over = True
         actions = [
             Action(value=nonzero_hole_idx)
@@ -405,6 +412,13 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
         capture_value = 20
     node.value = 0.25 * board.store_offset(node.player) + 0.8 * capture_value + seeds_added_to_store
     node.value += 0.3 * board.get_hoard_side_value(node.player)
+    if action.value < 4:
+        node.value += 2
+    if side == Side.SOUTH:
+        node.value -= 0.1 * board.store(Side.NORTH)
+    else:
+        node.value -= 0.1 * board.store(Side.SOUTH)
+
 
     actions = [
         Action(value=nonzero_hole_idx)
@@ -424,7 +438,8 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
 
 class MiniMaxAgent(Agent):
 
-    def choose_mini_max_move(self, gnode, max_depth=2, alpha = -9999.0, beta = 9999):
+    @lru_cache()
+    def choose_mini_max_move(self, gnode, max_depth=3, alpha = -9999.0, beta = 9999):
         "Choose bestMove for gnode along w final value"
         print("IN THE MINIMAX FUNCTION WITH GNODE:")
         print(f"DEPTH: {gnode.depth}")
@@ -447,7 +462,7 @@ class MiniMaxAgent(Agent):
                         gnode.next = nxt_gnode
                         gnode.best_move = move
                         max_evaluation = max(max_evaluation, gnode.value)
-                        alpha = max(alpha, gnode.value)
+                        alpha = max(alpha, max_evaluation)
                         if beta <= alpha:
                             break
                 else:
@@ -457,7 +472,7 @@ class MiniMaxAgent(Agent):
                         gnode.next = nxt_gnode
                         gnode.best_move = move
                         min_evaluation = min(min_evaluation, gnode.value)
-                        beta = min(beta, gnode.value)
+                        beta = min(beta, min_evaluation)
                         if beta <= alpha:
                             break
         return gnode
