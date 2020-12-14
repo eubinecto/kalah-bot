@@ -10,6 +10,9 @@ import torch
 import torch.nn.functional as F
 import torch.optim as optim
 from config import AC_MODEL_STATE_DICT_PATH, train_logger
+import logging
+from sys import stdout
+logging.basicConfig(stream=stdout, level=logging.INFO)
 
 # for debugging purposes
 torch.autograd.set_detect_anomaly(True)
@@ -36,27 +39,41 @@ def discounted_rewards(rewards: List[float], h_params: HyperParams) -> List[torc
         ]
 
 
-def finish_episode(agent: ACAgent, h_params: HyperParams):
+def finish_episode(agent_s: ACAgent, agent_n: ACAgent, h_params: HyperParams):
     """
     Training code. Calculates actor and critic loss and performs backprop.
     """
     global optimiser, EPS
     if not optimiser:
         raise ValueError("Optimiser has not been set")
-    saved_actions: List[SavedAction] = agent.saved_action_buffer
+    # action buffers for each agent
+    saved_actions_s: List[SavedAction] = agent_s.saved_action_buffer
+    saved_actions_n: List[SavedAction] = agent_n.saved_action_buffer
     policy_losses: List[torch.Tensor] = []  # list to save actor (policy) loss
     value_losses: List[torch.Tensor] = []  # list to save critic (value) loss
-    rewards: List[torch.Tensor] = discounted_rewards(agent.reward_buffer, h_params)
-    # get the losses
-    for saved_action, reward in zip(saved_actions, rewards):
+    # reward buffer for each agent
+    rewards_s: List[torch.Tensor] = discounted_rewards(agent_s.reward_buffer, h_params)
+    rewards_n: List[torch.Tensor] = discounted_rewards(agent_n.reward_buffer, h_params)
+
+    # get the losses for agent_s
+    for saved_action, reward in zip(saved_actions_s, rewards_s):
         critique = saved_action.critique
         log_prob = saved_action.logit
         advantage = reward - critique
         policy_losses.append(-log_prob * advantage)  # actor (policy) loss for this action
         value_losses.append(F.smooth_l1_loss(critique.squeeze(), reward))  # critic (value) loss using L1 smooth loss
+
+    # get the losses for agent_n
+    for saved_action, reward in zip(saved_actions_n, rewards_n):
+        critique = saved_action.critique
+        log_prob = saved_action.logit
+        advantage = reward - critique
+        policy_losses.append(-log_prob * advantage)  # actor (policy) loss for this action
+        value_losses.append(F.smooth_l1_loss(critique.squeeze(), reward))  # critic (value) loss using L1 smooth loss
+
     # sum up all the values of policy_losses and value_losses
     loss = torch.stack(policy_losses).sum() + torch.stack(value_losses).sum()
-    # perform backprop
+    # perform backpropagation
     optimiser.zero_grad()
     loss.backward()
     # update the weights
@@ -83,7 +100,7 @@ def main():
         # play the game. agent_s starts first.
         env.play_game()
         # update ac_model's parameters for both sides.
-        finish_episode(agent_n, h_params)  # train the north agent
+        finish_episode(agent_s, agent_n, h_params)  # train the north agent
         # finish_episode(agent_s, h_params)
         # these are just for logging the progress
         reward_n = sum(agent_n.reward_buffer)
@@ -91,7 +108,6 @@ def main():
         running_reward_n = 0.05 * reward_n + (1 - 0.05) * running_reward_n
         running_reward_s = 0.05 * reward_s + (1 - 0.05) * running_reward_s
         # log results
-        print('Episode {}'.format(episode))
         train_logger.info('Episode {}'.format(episode))
         train_logger.info('  Player North\tLast reward: {:.2f}\tAverage reward: {:.2f}'.format(reward_n,
                                                                                                running_reward_n))

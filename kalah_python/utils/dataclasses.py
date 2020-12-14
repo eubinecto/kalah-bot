@@ -16,8 +16,9 @@ class SavedAction:
 # hyper parameters for actor-critic
 @dataclass
 class HyperParams:
-    NUM_EPISODES: int = 2000
+    NUM_EPISODES: int = 1500
     OFFSET_W: float = 0.70  # weight for the offset reward after each move
     NEW_SEEDS_W: float = 0.70
-    DISCOUNT_FACTOR: float = 0.99  # (gamma)
+    WIN_BONUS: int = 10
+    DISCOUNT_FACTOR: float = 0.90  # (gamma)
     LEARNING_RATE: float = 3e-2  # for optimizer

@@ -70,6 +70,8 @@ class ActorCritic(nn.Module):
         super(ActorCritic, self).__init__()
         self.linear_layers = nn.Sequential(
             nn.Linear(state_size, 128),
+            nn.ReLU(inplace=False),
+            nn.Linear(128, 128),
             nn.ReLU(inplace=False)
         )
         self.actor = Actor(in_size=128, action_size=action_size)

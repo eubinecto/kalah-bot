@@ -67,6 +67,7 @@ class Server:
             self._interpret_msg(msg.strip())
             if self.agent.action_is_registered():  # check if an action is registered.
                 try:
+                    # make a move on the server side.
                     # this will fail if the connection is lost
                     writer.write(self.agent.action.to_cmd())
                 except ConnectionResetError as cre:
@@ -76,8 +77,6 @@ class Server:
                     # if the command was successful, commit and unregister the action
                     # commit the action
                     self.agent.commit_action()
-                    if self.agent.action == Action.SWAP:
-                        self.agent.swap_side()
                     self.agent.unregister_action()
                     # clear the buffer
                     await writer.drain()

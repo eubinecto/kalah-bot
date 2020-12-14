@@ -57,7 +57,7 @@ class Agent(object):
     # state attribute will be accessible
     state: AgentState
 
-    def __init__(self, board: Board = None):
+    def __init__(self, board: Board = None, verbose: bool = False):
         # an agent maintains an up-to-date board,
         # the current state of the agent,
         # and the current turn.
@@ -66,6 +66,7 @@ class Agent(object):
                                transitions=Agent.TRANSITIONS, initial=AgentState.INIT)
         self.side: Optional[Side] = None
         self.action: Optional[Action] = None
+        self.verbose = verbose
 
     def decide_on_action(self, possible_actions: List[Action], **kwargs) -> Action:
         """
@@ -104,6 +105,7 @@ class Agent(object):
         if self.action in Action.move_actions():
             self.moves()
         elif self.action == Action.SWAP:
+            self.swap_side()
             self.swaps()  # then trigger
         else:
             raise ValueError("Invalid registered action:" + str(self.action))
@@ -139,12 +141,14 @@ class Agent(object):
         self.register_action(action)
 
     def on_enter_FINISHED(self):
-        print("------- game is finished --------")
-        print(self.board)
+        if self.verbose:
+            print("------- game is finished --------")
+            print(self.board)
 
     def on_enter_EXIT(self):
-        print("------- game was aborted --------")
-        print(self.board)
+        if self.verbose:
+            print("------- game was aborted --------")
+            print(self.board)
 
 
 # subclasses of the Agent class.
@@ -193,14 +197,15 @@ class ACAgent(Agent):
     Actor-Critic agent.
     """
     @overrides
-    def __init__(self, ac_model: ActorCritic, board: Board = None, buffer: bool = True):
+    def __init__(self, ac_model: ActorCritic, board: Board = None,
+                 buffer: bool = True, verbose: bool = False):
         """
         :param ac_model:
         :param board:
         :param buffer: True: save actions & rewards to the buffer. Set this True if you are training,
         False otherwise.
         """
-        super(ACAgent, self).__init__(board=board)
+        super(ACAgent, self).__init__(board=board, verbose=verbose)
         self.ac_model: ActorCritic = ac_model
         # buffers to be used for.. backprop
         self.saved_action_buffer: List[SavedAction] = list()
@@ -213,9 +218,7 @@ class ACAgent(Agent):
         :param possible_actions:
         :return:
         """
-        print("------decide on action------")
-        print(self.board)
-        print("side:" + str(self.side))
+
         # load the pretrained model from data. (<1GB)
         action_mask = self.action_mask(possible_actions)
         states = torch.tensor(self.board.board_flat(self.side), dtype=torch.float32)  # board (flattened) representation
@@ -225,7 +228,11 @@ class ACAgent(Agent):
         if self.buffer:
             self.saved_action_buffer.append(SavedAction(logit, prob, critique, action))
         # sample an action according to the prob distribution.
-        print("next action:" + str(action))
+        if self.verbose:
+            print("------decide on action------")
+            print(self.board)
+            print("side:" + str(self.side))
+            print("next action:" + str(action))
         return action
 
     @staticmethod

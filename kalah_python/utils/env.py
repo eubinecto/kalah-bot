@@ -33,9 +33,13 @@ class KalahEnv:
         self.env_state = KalahEnvState.SOUTH_TURN  # start with south.
         while self.env_state != KalahEnvState.GAME_ENDS:
             if self.env_state == KalahEnvState.SOUTH_TURN:
-                self.order_agent(self.agent_s)
+                turn_agent = self.agent_s
+                self.update_env(turn_agent)
+                self.raise_triggers(turn_agent)
             elif self.env_state == KalahEnvState.NORTH_TURN:
-                self.order_agent(self.agent_n)
+                turn_agent = self.agent_n
+                self.update_env(turn_agent)
+                self.raise_triggers(turn_agent)
             else:
                 raise ValueError("Invalid env_state: " + str(self.env_state))
 
@@ -51,28 +55,55 @@ class KalahEnv:
         # reset the env state as well
         self.env_state = KalahEnvState.INIT
 
-    def order_agent(self, agent: Agent):
+    def update_env(self, turn_agent: Agent) -> int:
         """
-        orders the given agent to commit an action.
-        :param agent:
+        this should not change any signals, whatsoever.
+        :param turn_agent:
         :return:
         """
-        if not agent.action_is_registered():
+        if self.board.seeds != 98:
+            print("########")
+            print(self.board)
+            print("########")
+            raise ValueError("Should be 98 but was: " + str(self.board.seeds))
+
+        if not turn_agent.action_is_registered():
             raise ValueError("Action should have been registered, but it is not.")
         # have to commit & agent action before execute action (due to swap)
-
-        if agent.action == Action.SWAP:
-            env_state, _ = self.execute_swap()
+        if turn_agent.action == Action.SWAP:
+            env_state, seeds_added_to_store = self.execute_swap()
         else:
-            env_state, _ = self.execute_move(agent.action, agent.board,
-                                             agent.side, agent.state)
+            env_state, seeds_added_to_store = self.execute_move(turn_agent.action, turn_agent.board,
+                                                                turn_agent.side, turn_agent.state)
         self.env_state = env_state
-        # update the environment states
-        agent.commit_action()  # this will.. only make make changes in the states
-        agent.unregister_action()
-        self.notify_game_state()  # notify the game state to both agents
+        return seeds_added_to_store
 
-    def notify_game_state(self):
+    def agent(self, side: Side):
+        if side == Side.NORTH:
+            return self.agent_n
+        elif side == Side.SOUTH:
+            return self.agent_s
+        else:
+            raise ValueError
+
+    def raise_triggers(self, turn_agent: Agent):
+        # first, must commit the action taken
+        turn_agent_src_state = turn_agent.state
+        turn_agent_action = turn_agent.action
+        turn_agent.commit_action()  # if the action was SWAP, this will swap the side.
+        turn_agent.unregister_action()
+
+        if turn_agent_src_state == AgentState.MAKE_MOVE_OR_SWAP:
+            opp_agent = self.agent(turn_agent.side.opposite())
+            if turn_agent_action == Action.SWAP:
+                opp_agent.opp_swap()  # this will register an action
+            else:
+                opp_agent.opp_no_swap()  # this will swap the side.
+                self.notify_state()
+        else:
+            self.notify_state()
+
+    def notify_state(self):
         if self.env_state == KalahEnvState.NORTH_TURN:
             self.agent_n.game_state_is_you()
             self.agent_s.game_state_is_opp()
@@ -86,11 +117,7 @@ class KalahEnv:
             raise ValueError("Invalid env_state:" + str(self.env_state))
 
     def execute_swap(self) -> Tuple[KalahEnvState, int]:
-        # the side of north agent should have been changed
-        # but agent south should still be in south side.
-        assert self.agent_n.side == Side.SOUTH and self.agent_s.side == Side.SOUTH
-        # the side of south agent should be changed as well.
-        self.agent_s.side = Side.NORTH
+        # the agent trying to swap must be the north agent.
         # now swap the agents
         self.agent_n, self.agent_s = self.agent_s, self.agent_n
         seeds_added_to_store = 0
@@ -166,7 +193,7 @@ class KalahEnv:
             # game_ends
             return KalahEnvState.GAME_ENDS, seeds_added_to_store
         # your store minus opponent's store at the move
-        if sow_hole == 0 and agent_state != AgentState.WAIT_FOR_MOVE_RESULT:
+        if sow_hole == 0 and agent_state != AgentState.DECIDE_ON_1ST_MOVE:
             if side == Side.SOUTH:
                 return KalahEnvState.SOUTH_TURN, seeds_added_to_store
             else:
@@ -196,7 +223,7 @@ class ACKalahEnv(KalahEnv):
         """
         super().play_game()
         game_res = self.game_res()
-        train_logger.info(str(self.board))
+        train_logger.info("\n" + str(self.board))
         if not game_res.draw:
             train_logger.info("winner: " + str(game_res.winner.side))
             train_logger.info("win score: " + str(game_res.win_score))
@@ -223,34 +250,15 @@ class ACKalahEnv(KalahEnv):
         # reset the env state as well
         self.env_state = KalahEnvState.INIT
 
-    def order_agent(self, agent: ACAgent):
+    def update_env(self, turn_agent: ACAgent):
         """
         orders the given agent to commit an action.
-        :param agent:
+        :param turn_agent:
         :return:
         """
-        if self.board.seeds != 98:
-            print("########")
-            print(self.board)
-            print("########")
-            raise ValueError("Should be 98 but was: " + str(self.board.seeds))
-
-        if not agent.action_is_registered():
-            raise ValueError("Action should have been registered, but it is not.")
-        # have to commit & agent action before execute action (due to swap)
-        agent.commit_action()
-        was_swap: bool
-        if agent.action == Action.SWAP:
-            env_state, seeds_added_to_store = self.execute_swap(agent)
-            was_swap = True
-        else:
-            env_state, seeds_added_to_store = self.execute_move(agent)
-            was_swap = False
-        reward = self.reward(agent.side, seeds_added_to_store)
-        agent.reward_buffer.append(reward)
-        # update the environment state.
-        self.env_state = env_state
-        self.notify_game_state()
+        seeds_added_to_store = super().update_env(turn_agent)
+        reward = self.reward(turn_agent.side, seeds_added_to_store)
+        turn_agent.reward_buffer.append(reward)
 
     def reward_and_penalise(self, game_res: Result):
         """

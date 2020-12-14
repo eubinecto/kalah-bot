@@ -5,8 +5,8 @@ from kalah_python.utils.env import KalahEnv
 
 def main():
     board = Board()
-    agent_s = RandomAgent(board=board)
-    agent_n = RandomAgent(board=board)
+    agent_s = RandomAgent(board=board, verbose=True)
+    agent_n = RandomAgent(board=board, verbose=True)
     kalah_env = KalahEnv(board, agent_s, agent_n)
     kalah_env.play_game()
 
