@@ -60,17 +60,19 @@ class KalahEnv:
         if not agent.action_is_registered():
             raise ValueError("Action should have been registered, but it is not.")
         # have to commit & agent action before execute action (due to swap)
-        agent.commit_action()
+
         if agent.action == Action.SWAP:
-            env_state, _ = self.execute_swap(agent)
+            env_state, _ = self.execute_swap()
         else:
-            env_state, _ = self.execute_move(agent)
-        # update the environment states
+            env_state, _ = self.execute_move(agent.action, agent.board,
+                                             agent.side, agent.state)
         self.env_state = env_state
+        # update the environment states
+        agent.commit_action()  # this will.. only make make changes in the states
+        agent.unregister_action()
         self.notify_game_state()  # notify the game state to both agents
 
     def notify_game_state(self):
-        # TODO: what if you are making a move again
         if self.env_state == KalahEnvState.NORTH_TURN:
             self.agent_n.game_state_is_you()
             self.agent_s.game_state_is_opp()
@@ -83,11 +85,11 @@ class KalahEnv:
         else:
             raise ValueError("Invalid env_state:" + str(self.env_state))
 
-    def execute_swap(self, agent: Agent) -> Tuple[KalahEnvState, int]:
+    def execute_swap(self) -> Tuple[KalahEnvState, int]:
         # the side of north agent should have been changed
-        agent.unregister_action()
-        assert agent.side == Side.SOUTH
-        # the side of south agent should be changed now...
+        # but agent south should still be in south side.
+        assert self.agent_n.side == Side.SOUTH and self.agent_s.side == Side.SOUTH
+        # the side of south agent should be changed as well.
         self.agent_s.side = Side.NORTH
         # now swap the agents
         self.agent_n, self.agent_s = self.agent_s, self.agent_n
@@ -95,15 +97,12 @@ class KalahEnv:
         return KalahEnvState.NORTH_TURN, seeds_added_to_store
 
     @staticmethod
-    def execute_move(agent: Agent) -> Tuple[KalahEnvState, int]:
+    def execute_move(action: Action, board: Board, side: Side, agent_state: AgentState) -> Tuple[KalahEnvState, int]:
         """
         :param: side: the current side of the agent
         :return: state, reward and done.
         """
-        hole = agent.action.value
-        board = agent.board
-        side = agent.side
-        agent.unregister_action()  # unregister action here.
+        hole = action.value
 
         seeds_added_to_store = 0
         seeds_to_sow = board.hole(hole, side)
@@ -167,7 +166,7 @@ class KalahEnv:
             # game_ends
             return KalahEnvState.GAME_ENDS, seeds_added_to_store
         # your store minus opponent's store at the move
-        if sow_hole == 0 and agent.state != AgentState.WAIT_FOR_MOVE_RESULT:
+        if sow_hole == 0 and agent_state != AgentState.WAIT_FOR_MOVE_RESULT:
             if side == Side.SOUTH:
                 return KalahEnvState.SOUTH_TURN, seeds_added_to_store
             else:
@@ -240,10 +239,13 @@ class ACKalahEnv(KalahEnv):
             raise ValueError("Action should have been registered, but it is not.")
         # have to commit & agent action before execute action (due to swap)
         agent.commit_action()
+        was_swap: bool
         if agent.action == Action.SWAP:
             env_state, seeds_added_to_store = self.execute_swap(agent)
+            was_swap = True
         else:
             env_state, seeds_added_to_store = self.execute_move(agent)
+            was_swap = False
         reward = self.reward(agent.side, seeds_added_to_store)
         agent.reward_buffer.append(reward)
         # update the environment state.

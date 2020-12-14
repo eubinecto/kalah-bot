@@ -4,7 +4,7 @@ from enum import Enum, auto
 import logging
 from sys import stdout
 
-from kalah_python.utils.enums import AgentState
+from kalah_python.utils.enums import AgentState, Action
 
 logging.basicConfig(stream=stdout, level=logging.INFO)
 # suppress logs from transitions
@@ -39,20 +39,15 @@ class Server:
         loop = asyncio.get_event_loop()
         # create task to the
         loop.create_task(asyncio.start_server(self._handle_client, host, port))
-        try:
-            logger.info("running the server...")
-            # exception handling
-            # loop.set_exception_handler(Server.handle_exception)
-            loop.run_forever()
-        except Exception as ve:
-            logger.error(str(ve))
-            loop.stop()
-            loop.close()
+        logger.info("running the server...")
+        # exception handling
+        loop.set_exception_handler(Server.handle_exception)
+        loop.run_forever()
 
     @staticmethod
     def handle_exception(loop, context):
         print(context['exception'])
-        raise Exception
+        loop.stop()
 
     async def _handle_client(self, reader, writer):
         """
@@ -67,7 +62,7 @@ class Server:
             msg = (await reader.read(255)).decode('utf8').strip()
             if not msg:
                 self.reset_states()
-                break
+                raise ConnectionResetError
             logger.info(msg)
             self._interpret_msg(msg.strip())
             if self.agent.action_is_registered():  # check if an action is registered.
@@ -81,6 +76,8 @@ class Server:
                     # if the command was successful, commit and unregister the action
                     # commit the action
                     self.agent.commit_action()
+                    if self.agent.action == Action.SWAP:
+                        self.agent.swap_side()
                     self.agent.unregister_action()
                     # clear the buffer
                     await writer.drain()

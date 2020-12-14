@@ -11,7 +11,7 @@ AC_MODEL_STATE_DICT_PATH = path.join(DATA_DIR, "ac_model.pkl")
 TRAIN_LOG = path.join(DATA_DIR, "ac_train.log")
 # hostname and port number to host the server socket
 HOST = 'localhost'
-PORT = 12345
+PORT = 12346
 
 
 # create logger with 'spam_application'

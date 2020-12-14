@@ -9,6 +9,9 @@ import random
 import torch
 from kalah_python.utils.dataclasses import SavedAction
 from kalah_python.utils.enums import AgentState, Action
+import logging
+logger = logging.getLogger("transitions.core")
+logger.setLevel(logging.WARN)
 
 
 class Agent(object):
@@ -101,7 +104,6 @@ class Agent(object):
         if self.action in Action.move_actions():
             self.moves()
         elif self.action == Action.SWAP:
-            self.swap_side()  # first swap side
             self.swaps()  # then trigger
         else:
             raise ValueError("Invalid registered action:" + str(self.action))
