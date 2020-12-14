@@ -424,7 +424,7 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
 
 class MiniMaxAgent(Agent):
 
-    def choose_mini_max_move(self, gnode, max_depth=3, alpha = -9999.0, beta = 9999):
+    def choose_mini_max_move(self, gnode, max_depth=2, alpha = -9999.0, beta = 9999):
         "Choose bestMove for gnode along w final value"
         print("IN THE MINIMAX FUNCTION WITH GNODE:")
         print(f"DEPTH: {gnode.depth}")
@@ -438,7 +438,7 @@ class MiniMaxAgent(Agent):
                 nxt_gnode.depth = gnode.depth + 1
                 print(f"Calling with the Move:{move}")
                 nxt_gnode.move(move)
-                self.choose_mini_max_move(nxt_gnode, max_depth)  # recursion here
+                self.choose_mini_max_move(nxt_gnode, max_depth, alpha, beta)  # recursion here
                 keep = (gnode.next is None)  # 1st of sequence
                 if gnode.maximizing(self.side):
                     if keep or nxt_gnode.value > gnode.value:
