@@ -382,21 +382,10 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
         seeds_added_to_store += seeds
         # here, we are not returning game over, but returning
         # game_ends
-        # TODO  Have a method to calculate the value
 
-        if capture_flag or last_seed_in_store:
-            if capture_flag:
-                capture_value = 25
-            else:
-                capture_value = 15
-        node.value = 0.25 * board.store_offset(node.player) + 0.8 * capture_value + seeds_added_to_store
-        node.value += 0.3 * board.get_hoard_side_value(node.player)
-        if action.value < 4:
-            node.value += 2
-        if side == Side.SOUTH:
-            node.value -= 0.1 * board.store(Side.NORTH)
-        else:
-            node.value -= 0.1 * board.store(Side.SOUTH)
+        node.value = evaluate_game_state(board, seeds_added_to_store, capture_flag,
+                                         last_seed_in_store, node.player, action)
+
         node.is_over = True
         actions = [
             Action(value=nonzero_hole_idx)
@@ -405,30 +394,9 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
         node.moves = actions
         return node
 
-    # TODO Use the value method here as well
     node.board = board
-
-    number_of_rocks_on_side = 0
-    if capture_flag or last_seed_in_store:
-        capture_value = 20
-    if sow_side == Side.SOUTH:
-        for hole in node.board.south_holes:
-            number_of_rocks_on_side = number_of_rocks_on_side + int(hole)
-    else:
-        for hole in node.board.north_holes:
-            number_of_rocks_on_side = number_of_rocks_on_side + int(hole)
-
-    if capture_flag or last_seed_in_store:
-        capture_value = 20
-    node.value = 0.25 * board.store_offset(node.player) + 0.8 * capture_value + seeds_added_to_store
-    node.value += 0.3 * board.get_hoard_side_value(node.player)
-    if action.value < 4:
-        node.value += 2
-    if side == Side.SOUTH:
-        node.value -= 0.1 * board.store(Side.NORTH)
-    else:
-        node.value -= 0.1 * board.store(Side.SOUTH)
-
+    node.value = evaluate_game_state(board, seeds_added_to_store, capture_flag,
+                                     last_seed_in_store, node.player, action)
 
     actions = [
         Action(value=nonzero_hole_idx)
@@ -446,10 +414,45 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
         return node
 
 
+def evaluate_game_state(board, seeds_added_to_store, capturing_move, last_seed_in_store, side, action):
+    capture_value = reward_capturing_move(capturing_move, last_seed_in_store)
+    score_difference = board.store_offset(side)
+    hoard_value = board.get_hoard_side_value(side)
+    play_right_holes = reward_playing_pits_closest_to_opponent(action)
+    opponent_store = get_opponent_store(board, side)
+
+    return 0.25 * score_difference + 0.8 * capture_value + seeds_added_to_store + 0.3 * hoard_value \
+           + play_right_holes - 0.05 * opponent_store
+
+
+def reward_playing_pits_closest_to_opponent(action):
+    if action.value > 4:
+        return 2
+    else:
+        return 0
+
+
+def get_opponent_store(board, side):
+    if side == Side.NORTH:
+        return board.store(Side.SOUTH)
+    else:
+        return board.store(Side.NORTH)
+
+
+def reward_capturing_move(capturing_move, last_seed_in_store):
+    if capturing_move or last_seed_in_store:
+        if capturing_move:
+            return 20
+        else:
+            return 18
+    else:
+        return 0
+
+
 class MiniMaxAgent(Agent):
 
     @lru_cache()
-    def choose_mini_max_move(self, gnode, max_depth=3, alpha = -9999.0, beta = 9999):
+    def choose_mini_max_move(self, gnode, max_depth=3, alpha=-9999.0, beta=9999):
         "Choose bestMove for gnode along w final value"
         print("IN THE MINIMAX FUNCTION WITH GNODE:")
         print(f"DEPTH: {gnode.depth}")
