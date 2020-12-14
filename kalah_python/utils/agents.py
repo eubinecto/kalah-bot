@@ -408,6 +408,16 @@ def simulate_move(self, action: Action, node: GameNode) -> GameNode:
     # TODO Use the value method here as well
     node.board = board
 
+    number_of_rocks_on_side = 0
+    if capture_flag or last_seed_in_store:
+        capture_value = 20
+    if sow_side == Side.SOUTH:
+        for hole in node.board.south_holes:
+            number_of_rocks_on_side = number_of_rocks_on_side + int(hole)
+    else:
+        for hole in node.board.north_holes:
+            number_of_rocks_on_side = number_of_rocks_on_side + int(hole)
+
     if capture_flag or last_seed_in_store:
         capture_value = 20
     node.value = 0.25 * board.store_offset(node.player) + 0.8 * capture_value + seeds_added_to_store
