@@ -20,10 +20,15 @@ class Agent(object):
         ['moves', AgentState.MAKE_MOVE_OR_SWAP, AgentState.WAIT_FOR_GAME_STATE],
         ['moves', AgentState.DECIDE_ON_MOVE, AgentState.WAIT_FOR_GAME_STATE],
         ['swaps', AgentState.MAKE_MOVE_OR_SWAP, AgentState.WAIT_FOR_GAME_STATE],
-        ['game_state_is_opp', AgentState.WAIT_FOR_SWAP_DECISION, AgentState.WAIT_FOR_GAME_STATE],
+        ['opp_no_swap', AgentState.WAIT_FOR_SWAP_DECISION, AgentState.WAIT_FOR_GAME_STATE],
         ['game_state_is_opp', AgentState.WAIT_FOR_MOVE_RESULT, AgentState.WAIT_FOR_SWAP_DECISION],
         ['game_state_is_opp', AgentState.WAIT_FOR_GAME_STATE, "="],  # reflexive trigger
-        ['game_state_is_you', AgentState.WAIT_FOR_SWAP_DECISION, AgentState.DECIDE_ON_MOVE],
+        {
+            'trigger': 'opp_swap',
+            'source': AgentState.WAIT_FOR_SWAP_DECISION,
+            'dest': AgentState.DECIDE_ON_MOVE,
+            'before': 'swap_side'
+        },
         ['game_state_is_you', AgentState.WAIT_FOR_1ST_MOVE, AgentState.MAKE_MOVE_OR_SWAP],
         ['game_state_is_you', AgentState.WAIT_FOR_GAME_STATE, AgentState.DECIDE_ON_MOVE],
         ['game_state_is_end', AgentState.WAIT_FOR_GAME_STATE, AgentState.FINISHED],
@@ -38,6 +43,8 @@ class Agent(object):
     new_match_2nd: Callable
     moves: Callable
     swaps: Callable
+    opp_swap: Callable
+    opp_no_swap: Callable
     game_state_is_opp: Callable
     game_state_is_you: Callable
     game_state_is_end: Callable
@@ -100,6 +107,7 @@ class Agent(object):
             raise ValueError("Invalid registered action:" + str(self.action))
 
     def swap_side(self):
+        print("swapping side")
         if self.side == Side.NORTH:
             self.side = Side.SOUTH
         elif self.side == Side.SOUTH:

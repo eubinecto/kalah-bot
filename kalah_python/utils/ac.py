@@ -37,7 +37,8 @@ class Actor(nn.Module):
         # https://discuss.pytorch.org/t/recommended-way-to-replace-a-partcular-value-in-a-tensor/25424
         y_1_masked = torch.where(y_2 == 0, neg_inf, y_2)
         y_3 = F.softmax(y_1_masked, dim=0)  # logits -> probability distributions.
-        return y_3.clone()  # probability distribution over the possible actions.
+        y_4 = y_3 * action_mask  # do the mask again
+        return y_4.clone()  # probability distribution over the possible actions.
 
 
 class Critic(nn.Module):
@@ -82,5 +83,5 @@ class ActorCritic(nn.Module):
             raise ValueError("some of the values of x is nan:" + str(x))
         y_1 = self.linear_layers.forward(x)
         y_2 = self.actor.forward(y_1, action_mask)  # features -> action probs
-        y_3 = self.critic.forward(y_1)  # features -> state evaluation (single value)
-        return y_2.clone(), y_3.clone()  # action_probs, critique.
+        y_4 = self.critic.forward(y_1)  # features -> state evaluation (single value)
+        return y_2.clone(), y_4.clone()  # action_probs, critique.

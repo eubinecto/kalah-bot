@@ -3,13 +3,13 @@ from kalah_python.utils.ac import ActorCritic
 from kalah_python.utils.agents import ACAgent
 from kalah_python.utils.dataclasses import HyperParams, SavedAction
 from kalah_python.utils.enums import Action
-from kalah_python.utils.env import KalahACEnv
+from kalah_python.utils.env import ACKalahEnv
 from kalah_python.utils.board import Board
 import numpy as np
 import torch
 import torch.nn.functional as F
 import torch.optim as optim
-from config import AC_MODEL_PKL_PATH
+from config import AC_MODEL_STATE_DICT_PATH, train_logger
 
 # for debugging purposes
 torch.autograd.set_detect_anomaly(True)
@@ -71,7 +71,7 @@ def main():
     # the same board, and the same model
     agent_s = ACAgent(ac_model, board=board)
     agent_n = ACAgent(ac_model, board=board)
-    env = KalahACEnv(board, agent_s, agent_n, h_params)  # instantiate a game environment.
+    env = ACKalahEnv(board, agent_s, agent_n, h_params)  # instantiate a game environment.
     # init the optimiser
     optimiser = optim.Adam(ac_model.parameters(), lr=h_params.LEARNING_RATE)
     # what is this for?
@@ -83,8 +83,8 @@ def main():
         # play the game. agent_s starts first.
         env.play_game()
         # update ac_model's parameters for both sides.
-        # finish_episode(agent_n, h_params)
-        finish_episode(agent_s, h_params)
+        finish_episode(agent_n, h_params)  # train the north agent
+        # finish_episode(agent_s, h_params)
         # these are just for logging the progress
         reward_n = sum(agent_n.reward_buffer)
         reward_s = sum(agent_s.reward_buffer)
@@ -92,10 +92,15 @@ def main():
         running_reward_s = 0.05 * reward_s + (1 - 0.05) * running_reward_s
         # log results
         print('Episode {}'.format(episode))
-        print('  Player North\tLast reward: {:.2f}\tAverage reward: {:.2f}'.format(reward_n, running_reward_n))
-        print('  Player South\tLast reward: {:.2f}\tAverage reward: {:.2f}'.format(reward_s, running_reward_s))
+        train_logger.info('Episode {}'.format(episode))
+        train_logger.info('  Player North\tLast reward: {:.2f}\tAverage reward: {:.2f}'.format(reward_n,
+                                                                                               running_reward_n))
+        train_logger.info('  Player South\tLast reward: {:.2f}\tAverage reward: {:.2f}'.format(reward_s,
+                                                                                               running_reward_s))
+        train_logger.info("==================")
+
     else:  # on successful completion of the for loop
-        torch.save(ac_model.state_dict(), AC_MODEL_PKL_PATH)
+        torch.save(ac_model.state_dict(), AC_MODEL_STATE_DICT_PATH)
 
 
 if __name__ == '__main__':

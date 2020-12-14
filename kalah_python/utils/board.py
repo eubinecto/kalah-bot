@@ -30,7 +30,7 @@ class Board:
     def opposite_hole_idx(hole_idx: int) -> int:
         if hole_idx < 1 or hole_idx > 7:  # error check
             raise ValueError("hole_idx is out of range.")
-        return 7 - hole_idx + 1
+        return Board.HOLES_PER_SIDE - hole_idx + 1
 
     def nonzero_holes(self, side: Side) -> List[int]:
         return [
@@ -45,15 +45,14 @@ class Board:
         Not to be used for actor critic.
         :return:
         """
-        #
         board_state = change_msg.split(";")[2]
         north_state = np.array(
-            [int(board_state.split(",")[7])]
-            + [int(seed) for seed in board_state.split(",")[:7]]
+            [int(board_state.split(",")[Board.HOLES_PER_SIDE])]
+            + [int(seed) for seed in board_state.split(",")[:Board.HOLES_PER_SIDE]]
         )  # 1,2,3,4,5,6,7 -- store
         south_state = np.array(
             [int(board_state.split(",")[-1])]
-            + [int(seed) for seed in board_state.split(",")[8:-1]]
+            + [int(seed) for seed in board_state.split(",")[Board.HOLES_PER_SIDE + 1:-1]]
         )  # 1,2,3,4,5,6,7 -- store
         if self.north_board.shape != north_state.shape or self.south_board.shape != south_state.shape:
             raise ValueError("shape mismatch")
@@ -161,6 +160,10 @@ class Board:
         """
         # better get a copy, just in case you don't mess up things.
         return np.copy(self.south_board[1:])
+
+    @property
+    def seeds(self) -> int:
+        return self.north_board.sum() + self.south_board.sum()
 
     @property
     def board_size(self) -> int:
