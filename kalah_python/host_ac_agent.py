@@ -9,7 +9,7 @@ import torch
 def main():
     # load a pretrained model, and host.
     from kalah_python.utils.enums import Action
-    ac_model = ActorCritic(state_size=Board().board_size, action_size=len(Action))
+    ac_model = ActorCritic(state_size=Board.STATE_SIZE, action_size=len(Action))
     ac_model.load_state_dict(torch.load(AC_MODEL_STATE_DICT_PATH))
     server = Server(agent=ACAgent(ac_model, buffer=False))
     server.start_hosting(host=HOST, port=PORT)

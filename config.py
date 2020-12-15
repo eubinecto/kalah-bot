@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from pathlib import Path
 # the root directory of this project
 # define the directories here
@@ -15,13 +14,9 @@ PORT = 12346
 
 
 # create logger with 'spam_application'
-train_logger = logging.getLogger('play_game')
+train_logger = logging.getLogger('train_ac')
 train_logger.setLevel(logging.INFO)
 # create file handler which logs even debug messages
 fh = logging.FileHandler(TRAIN_LOG)
 fh.setLevel(logging.DEBUG)
 train_logger.addHandler(fh)
-
-
-
-

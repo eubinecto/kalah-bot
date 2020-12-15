@@ -47,7 +47,7 @@ class Server:
     @staticmethod
     def handle_exception(loop, context):
         print(context['exception'])
-        loop.stop()
+        loop.stop()  # stop the loop on any exception.
 
     async def _handle_client(self, reader, writer):
         """
@@ -138,7 +138,7 @@ class Server:
                 self.agent.game_state_is_you()
             elif game_state == "OPP":
                 self.agent.game_state_is_opp()
-            elif game_state in ("END\nEND" or "END"):
+            elif game_state in ("END\nEND" or "END"):  # non-deterministic
                 self.agent.game_state_is_end()
             else:
                 raise ValueError("invalid game_state:" + game_state)

@@ -95,4 +95,17 @@ Pytorch tutorial - https://torlenor.org/machine%20learning/reinforcement%20learn
 ---
 14th of Dec
 
-## the rewards must be non-negative!
+- the rewards must be non-negative!
+- fixed Server & Env. Had many problems when agents swap.
+- can train acAgent against itself.
+  - it beats MKRefAgent, but not JimmyPlayer
+  - possibly due to overfitting
+  
+ ---
+ 15th of Dec
+- now, make it possible so that you can train AC model against other models
+  - against RandomAgent, MinimaxAgent. -> show the gradual increase in win rates (window=10)
+- test the resulting agent with JimmyPlayer, MKRefAgent
+- train.py
+- parsing the logs to get win rate 
+- research into the theoretical side of the approach.

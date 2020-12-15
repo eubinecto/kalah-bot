@@ -7,7 +7,7 @@ from kalah_python.utils.enums import Side
 
 
 class Board:
-
+    STATE_SIZE: int = 17
     NORTH_ROW: int = 0
     SOUTH_ROW: int = 1
     HOLES_PER_SIDE: int = 7
@@ -129,9 +129,9 @@ class Board:
         """
         # just concatenate the two boards.
         if side == Side.NORTH:
-            return np.concatenate((self.north_board, self.south_board))
+            return np.concatenate((self.south_board, self.north_board, np.array([0])))
         elif side == Side.SOUTH:
-            return np.concatenate((self.south_board, self.north_board))
+            return np.concatenate((self.south_board, self.north_board, np.array([1])))
         else:
             raise ValueError("Invalid error: " + str(side))
 

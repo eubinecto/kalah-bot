@@ -7,14 +7,14 @@ from transitions import Machine
 from overrides import overrides
 import random
 import torch
-from kalah_python.utils.dataclasses import SavedAction
+from kalah_python.utils.dataclasses import ActionInfo
 from kalah_python.utils.enums import AgentState, Action
 import logging
 logger = logging.getLogger("transitions.core")
 logger.setLevel(logging.WARN)
 
 
-class Agent(object):
+class Agent:
     # trigger, source, dest
     TRANSITIONS = [
         ['new_match_1st', AgentState.INIT, AgentState.DECIDE_ON_1ST_MOVE],
@@ -57,7 +57,7 @@ class Agent(object):
     # state attribute will be accessible
     state: AgentState
 
-    def __init__(self, board: Board = None, verbose: bool = False):
+    def __init__(self, board: Board = None, verbose: bool = True, buffer: bool = True):
         # an agent maintains an up-to-date board,
         # the current state of the agent,
         # and the current turn.
@@ -66,7 +66,10 @@ class Agent(object):
                                transitions=Agent.TRANSITIONS, initial=AgentState.INIT)
         self.side: Optional[Side] = None
         self.action: Optional[Action] = None
-        self.verbose = verbose
+        self.verbose: bool = verbose
+        self.buffer: bool = buffer
+        self.action_buffer: List[Action] = list()
+        self.reward_buffer: List[float] = list()
 
     def decide_on_action(self, possible_actions: List[Action], **kwargs) -> Action:
         """
@@ -101,6 +104,8 @@ class Agent(object):
     def commit_action(self):
         if not self.action_is_registered():
             raise ValueError("attempted to commit an action which is not registered")
+        if self.buffer:  # store the actions made to the buffer. (for debugging)
+            self.action_buffer.append(self.action)
         # and unregister the action
         if self.action in Action.move_actions():
             self.moves()
@@ -150,22 +155,33 @@ class Agent(object):
             print("------- game was aborted --------")
             print(self.board)
 
+    def __str__(self) -> str:
+        return "side={}".format(self.side)
+
 
 # subclasses of the Agent class.
 class RandomAgent(Agent):
+
+    def __init__(self, board: Board = None, verbose: bool = True, buffer: bool = True):
+        super().__init__(board, verbose, buffer)
+
     @overrides
     def decide_on_action(self, possible_actions: List[Action]) -> Action:
         """
         :param possible_actions:
         :return:
         """
-        print("------decide_on_action----")
-        print("It is your turn:")
-        print(self.board)
-        print("your side:", self.side)
         action = random.choice(possible_actions)
-        print("random action: " + str(action))
+        if self.verbose:
+            print("------decide_on_action----")
+            print("It is your turn:")
+            print(self.board)
+            print("your side:", self.side)
+            print("random action: " + str(action))
         return action
+
+    def __str__(self) -> str:
+        return "random_agent|" + super().__str__()
 
 
 class UserAgent(Agent):
@@ -191,6 +207,9 @@ class UserAgent(Agent):
             option_key = input("Choose an option:")
         return options[option_key]
 
+    def __str__(self) -> str:
+        return "user_agent|" + super().__str__()
+
 
 class ACAgent(Agent):
     """
@@ -205,12 +224,11 @@ class ACAgent(Agent):
         :param buffer: True: save actions & rewards to the buffer. Set this True if you are training,
         False otherwise.
         """
-        super(ACAgent, self).__init__(board=board, verbose=verbose)
+        super(ACAgent, self).__init__(board=board, verbose=verbose, buffer=buffer)
         self.ac_model: ActorCritic = ac_model
         # buffers to be used for.. backprop
-        self.saved_action_buffer: List[SavedAction] = list()
-        self.reward_buffer: List[float] = list()
-        self.buffer = buffer
+        # ac agent maintains an action info buffer, along with action & reward buffers
+        self.action_info_buffer: List[ActionInfo] = list()
 
     @overrides
     def decide_on_action(self, possible_actions: List[Action]) -> Action:
@@ -226,7 +244,7 @@ class ACAgent(Agent):
         probs, critique = self.ac_model.forward(states, action_mask)  # prob. dist over the actions, critique on states
         action, logit, prob = self.sample_action(probs)
         if self.buffer:
-            self.saved_action_buffer.append(SavedAction(logit, prob, critique, action))
+            self.action_info_buffer.append(ActionInfo(logit, prob, critique, action))
         # sample an action according to the prob distribution.
         if self.verbose:
             print("------decide on action------")
@@ -262,8 +280,8 @@ class ACAgent(Agent):
         ])
 
     def clear_buffers(self):
-        del self.reward_buffer[:]
-        del self.saved_action_buffer[:]
+        self.reward_buffer.clear()
+        self.action_info_buffer.clear()
 
     def __str__(self) -> str:
-        return str(self.side)
+        return "ac_agent|" + super().__str__()

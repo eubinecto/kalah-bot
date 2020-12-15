@@ -4,7 +4,6 @@ from typing import List
 
 @unique
 class Action(Enum):
-    # TODO: well, better fix this.
     # all possible moves are defined here.
     MOVE_1ST_WELL = 1
     MOVE_2ND_WELL = 2
