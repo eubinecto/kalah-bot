@@ -20,6 +20,7 @@ logging.basicConfig(stream=stdout, level=logging.INFO)
 
 DELIM = "=================================================="
 
+
 class Episode:
     def __init__(self, epi_num: int, h_params: HyperParams,
                  optimizer: torch.optim.Optimizer, game_res: 'Result'):

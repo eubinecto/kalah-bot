@@ -42,8 +42,11 @@ def ext_logs(raws: List[str]) -> List[LogOpp]:
     return logs
 
 
-def plot(x: List[int], y: List[float]):
+def plot(x: List[int], y: List[float], title):
     plt.bar(x, y)
+    plt.title(title)
+    plt.xlabel("episode")
+    plt.ylabel("average reward")
     plt.show()
 
 
@@ -67,7 +70,8 @@ def main():
     )
     # episodes
     episodes = list(range(1, len(logs) + 1))
-    plot(episodes, list(rewards_avgs))
+    plot(episodes, list(rewards_avgs),
+         "average rewards of Actor Critic model (against random agent)")
 
 
 if __name__ == '__main__':
