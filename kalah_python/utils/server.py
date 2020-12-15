@@ -65,7 +65,6 @@ class Server:
         while msg != "END":  # while msg is not empty string
             msg = (await reader.read(255)).decode('utf8').strip()
             if not msg:
-                self.reset_states()
                 raise ConnectionResetError
             logger.info(msg)
             self._interpret_msg(msg.strip())
@@ -75,7 +74,6 @@ class Server:
                     # this will fail if the connection is lost
                     writer.write(self.agent.action.to_cmd())
                 except ConnectionResetError as cre:
-                    self.agent.game_over()
                     raise cre
                 else:
                     # if the command was successful, commit and unregister the action
@@ -151,8 +149,7 @@ class Server:
         print("------game is finished--------")
         print("your score:", self.agent.board.store(self.agent.side))
         print("opponent's score:", self.agent.board.store(self.agent.side.opposite()))
-        self.reset_states()
-        print("resetting the agent")
+        raise ConnectionResetError
 
     def reset_states(self):
         self.agent.reset()
