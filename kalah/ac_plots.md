@@ -5,14 +5,14 @@
 
 plots |
 --- |
-![](.ac_plots_images/f8742ba3.png)|
+![](.ac_plots_images/ca63e970.png)|
 
 ### against `RandomAgent`
 
 plots |
 --- |
-![](.ac_plots_images/69a0510b.png)| 
-![](.ac_plots_images/4c507c35.png)|
+![](.ac_plots_images/fb55b19d.png)| 
+![](.ac_plots_images/ebf78fcf.png)|
 
 
 ## Inference

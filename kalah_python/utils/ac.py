@@ -27,7 +27,6 @@ class Actor(nn.Module):
             raise ValueError("some of the values of x is nan:" + str(x))
         if x.shape[0] != self.in_size:  # error handling.
             raise ValueError("shape mismatch:{}!={}".format(x.shape[0], self.in_size))
-        # TODO: this might affect the performance
         y_1 = self.linear_layers(x)
         # element-wise multiplication of two tensors
         # https://discuss.pytorch.org/t/how-to-do-elementwise-multiplication-of-two-vectors/13182/2
