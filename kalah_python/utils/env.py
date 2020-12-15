@@ -18,6 +18,7 @@ EPS = np.finfo(np.float32).eps.item()  # the smallest possible value (epsilon)
 torch.autograd.set_detect_anomaly(True)
 logging.basicConfig(stream=stdout, level=logging.INFO)
 
+DELIM = "=================================================="
 
 class Episode:
     def __init__(self, epi_num: int, h_params: HyperParams,
@@ -107,6 +108,7 @@ class OppEpisode(Episode):
         self.update_weights()
 
     def log(self, start_time: float, logger: logging.Logger):
+        global DELIM
         super().log(start_time, logger)
         reward = sum(self.ac_agent_rewards)
         # log results
@@ -116,7 +118,7 @@ class OppEpisode(Episode):
                     .format(self.ac_agent_str,
                             reward, reward / len(self.ac_agent_rewards)))
         logger.info("time_elapsed:" + str(time_elapsed))
-        logger.info("==================================================")
+        logger.info(DELIM)
 
 
 class SelfEpisode(Episode):
@@ -147,6 +149,7 @@ class SelfEpisode(Episode):
 
         :return:
         """
+        global DELIM
         super().log(start_time, logger)
         reward_n = sum(self.ac_agent_n_rewards)
         reward_s = sum(self.ac_agent_s_rewards)
@@ -160,7 +163,7 @@ class SelfEpisode(Episode):
                     .format(self.ac_agent_s_str, reward_s,
                             reward_s / len(self.ac_agent_s_rewards)))
         logger.info("time elapsed:" + str(time_elapsed))
-        logger.info("==================================================")
+        logger.info(DELIM)
 
 
 @dataclass

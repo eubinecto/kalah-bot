@@ -4,7 +4,7 @@ from enum import Enum, auto
 import logging
 from sys import stdout
 
-from kalah_python.utils.enums import AgentState, Action
+from kalah_python.utils.enums import AgentState
 
 logging.basicConfig(stream=stdout, level=logging.INFO)
 # suppress logs from transitions
@@ -18,8 +18,9 @@ class Server:
         CHANGE = auto()
         END = auto()
 
-    def __init__(self, agent: Agent):
+    def __init__(self, agent: Agent, listen_forever: bool = False):
         self.agent: Agent = agent
+        self.listen_forever: bool = listen_forever
 
     @staticmethod
     def get_msg_type(msg: str) -> MsgType:
@@ -41,13 +42,16 @@ class Server:
         loop.create_task(asyncio.start_server(self._handle_client, host, port))
         logger.info("running the server...")
         # exception handling
-        loop.set_exception_handler(Server.handle_exception)
+        loop.set_exception_handler(self.handle_exception)
         loop.run_forever()
 
-    @staticmethod
-    def handle_exception(loop, context):
+    def handle_exception(self, loop, context):
         print(context['exception'])
-        loop.stop()  # stop the loop on any exception.
+        if self.listen_forever:
+            print("listening forever")
+            self.reset_states()
+        else:
+            loop.stop()  # stop the loop on any exception.
 
     async def _handle_client(self, reader, writer):
         """
