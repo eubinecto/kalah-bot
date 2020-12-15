@@ -16,27 +16,21 @@ class ActionInfo:
 # hyper parameters for actor-critic
 @dataclass
 class HyperParams:
-    NUM_EPISODES: int = 20000
-    OFFSET_W: float = 0.70  # weight for the offset reward after each move
-    NEW_SEEDS_W: float = 0.70
-    WIN_BONUS: int = 10
-    DISCOUNT_FACTOR: float = 0.90  # (gamma)
-    LEARNING_RATE: float = 3e-2  # for optimizer
+    num_episodes: int = 20000
+    win_bonus: int = 10
+    discount_factor: float = 0.90  # (gamma)
+    learning_rate: float = 3e-2  # for optimizer
 
     def __str__(self) -> str:
         return """
         num_episodes: {},
-        offset_w: {},
         win_bonus: {},
-        new_seeds_w: {},
         DISCOUNT_FACTOR: {},
         lr: {} 
         """.format(
-            self.NUM_EPISODES,
-            self.OFFSET_W,
-            self.WIN_BONUS,
-            self.NEW_SEEDS_W,
-            self.DISCOUNT_FACTOR,
-            self.LEARNING_RATE
+            self.num_episodes,
+            self.win_bonus,
+            self.discount_factor,
+            self.learning_rate
         )
 

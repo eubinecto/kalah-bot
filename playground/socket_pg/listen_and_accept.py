@@ -1,5 +1,5 @@
 import socket
-from config import HOST, PORT
+from kalah_python.config import HOST, PORT
 
 # 1 byte = 1 character, so 100 should be enough.
 BUFF_SIZE = 100

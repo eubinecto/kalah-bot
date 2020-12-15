@@ -10,7 +10,6 @@ from kalah_python.utils.agents import ACAgent, Agent
 from kalah_python.utils.board import Board
 from kalah_python.utils.dataclasses import HyperParams, ActionInfo
 from kalah_python.utils.enums import KalahEnvState, Action, Side, AgentState
-from config import train_logger
 import logging
 from sys import stdout
 EPS = np.finfo(np.float32).eps.item()  # the smallest possible value (epsilon)
@@ -22,10 +21,11 @@ logging.basicConfig(stream=stdout, level=logging.INFO)
 
 class Episode:
     def __init__(self, epi_num: int, h_params: HyperParams,
-                 optimizer: torch.optim.Optimizer):
+                 optimizer: torch.optim.Optimizer, game_res: 'Result'):
         self.epi_num = epi_num
         self.h_params = h_params
         self.optimizer = optimizer
+        self.game_res = game_res
         self.policy_losses: List[torch.Tensor] = list()
         self.value_losses: List[torch.Tensor] = list()
         self.loss: Optional[torch.Tensor] = None
@@ -36,7 +36,7 @@ class Episode:
         discounted: List[float] = list()
         R = 0
         for r in reversed(rewards):
-            R = r + self.h_params.DISCOUNT_FACTOR * R
+            R = r + self.h_params.discount_factor * R
             discounted.insert(0, R)
         else:
             # zero-centered mean
@@ -73,20 +73,25 @@ class Episode:
     def finish(self):
         raise NotImplementedError
 
-    def log(self, start_time: float):
+    def log(self, start_time: float, logger: logging.Logger):
         """
         each episode implements a different logging logic
-        :param start_time:
-        :return:
+
         """
-        raise NotImplementedError
+        logger.info("\n" + str(self.game_res.board))
+        if not self.game_res.draw:
+            logger.info("winner:" + str(self.game_res.winner))
+            logger.info("win_score:" + str(self.game_res.win_score))
+        else:
+            logger.info("the game ended in draw")
 
 
 class OppEpisode(Episode):
 
     def __init__(self, ac_agent: ACAgent, opp_agent: Agent,
-                 epi_num: int, h_params: HyperParams, optimizer: torch.optim.Optimizer):
-        super().__init__(epi_num, h_params, optimizer)
+                 epi_num: int, h_params: HyperParams,
+                 optimizer: torch.optim.Optimizer, game_res: 'Result'):
+        super().__init__(epi_num, h_params, optimizer, game_res)
         self.ac_agent_action_infos = ac_agent.action_info_buffer
         self.ac_agent_rewards = ac_agent.reward_buffer
         # just for the sake of logging.
@@ -101,23 +106,25 @@ class OppEpisode(Episode):
         # update the weights
         self.update_weights()
 
-    def log(self, start_time: float):
+    def log(self, start_time: float, logger: logging.Logger):
+        super().log(start_time, logger)
         reward = sum(self.ac_agent_rewards)
         # log results
         time_elapsed = time.time() - start_time
-        train_logger.info('episode:{}'.format(self.epi_num))
-        train_logger.info('player:{}\treward_total: {:.2f}\treward_avg: {:.2f}'
-                          .format(self.ac_agent_str,
-                                  reward, reward / len(self.ac_agent_rewards)))
-        train_logger.info("time_elapsed:" + str(time_elapsed))
-        train_logger.info("==================================================")
+        logger.info('episode:{}'.format(self.epi_num))
+        logger.info('player:{}\treward_total: {:.2f}\treward_avg: {:.2f}'
+                    .format(self.ac_agent_str,
+                            reward, reward / len(self.ac_agent_rewards)))
+        logger.info("time_elapsed:" + str(time_elapsed))
+        logger.info("==================================================")
 
 
 class SelfEpisode(Episode):
     def __init__(self, ac_agent_n: ACAgent, ac_agent_s: ACAgent,
-                 epi_num: int, h_params: HyperParams, optimizer: torch.optim.Optimizer):
+                 epi_num: int, h_params: HyperParams,
+                 optimizer: torch.optim.Optimizer, game_res: 'Result'):
         # actions for the two actions
-        super().__init__(epi_num, h_params, optimizer)
+        super().__init__(epi_num, h_params, optimizer, game_res)
         self.ac_agent_n_action_infos = ac_agent_n.action_info_buffer
         self.ac_agent_s_action_infos = ac_agent_s.action_info_buffer
         # rewards for the two actions
@@ -134,25 +141,26 @@ class SelfEpisode(Episode):
         self.build_loss()
         self.update_weights()
 
-    def log(self, start_time: float):
+    def log(self, start_time: float, logger: logging.Logger):
         """
         reference:
 
         :return:
         """
+        super().log(start_time, logger)
         reward_n = sum(self.ac_agent_n_rewards)
         reward_s = sum(self.ac_agent_s_rewards)
         # log results
         time_elapsed = time.time() - start_time
-        train_logger.info('episode {}'.format(self.epi_num))
-        train_logger.info('player:{}\treward_total: {:.2f}\treward_avg: {:.2f}'
-                          .format(self.ac_agent_n_str, reward_n,
-                                  reward_n / len(self.ac_agent_n_rewards)))
-        train_logger.info('player:{}\treward_total: {:.2f}\treward_avg: {:.2f}'
-                          .format(self.ac_agent_s_str, reward_s,
-                                  reward_s / len(self.ac_agent_s_rewards)))
-        train_logger.info("time elapsed:" + str(time_elapsed))
-        train_logger.info("==================================================")
+        logger.info('episode {}'.format(self.epi_num))
+        logger.info('player:{}\treward_total: {:.2f}\treward_avg: {:.2f}'
+                    .format(self.ac_agent_n_str, reward_n,
+                            reward_n / len(self.ac_agent_n_rewards)))
+        logger.info('player:{}\treward_total: {:.2f}\treward_avg: {:.2f}'
+                    .format(self.ac_agent_s_str, reward_s,
+                            reward_s / len(self.ac_agent_s_rewards)))
+        logger.info("time elapsed:" + str(time_elapsed))
+        logger.info("==================================================")
 
 
 @dataclass
@@ -161,6 +169,7 @@ class Result:
     win_score: int  # should always be positive
     winner: Union[Agent, ACAgent, None]
     loser: Union[Agent, ACAgent, None]
+    board: Board
 
 
 class KalahEnv:
@@ -367,20 +376,15 @@ class ACKalahEnv(KalahEnv):
                  h_params: HyperParams):
         super().__init__(board, agent_s, agent_n)
         self.h_params = h_params
+        self.game_res: Optional[Result] = None
 
     def play_game(self):
         super().play_game()
-        game_res = self.game_res()
-        train_logger.info("\n" + str(self.board))
-        if not game_res.draw:
-            train_logger.info("winner:" + str(game_res.winner))
-            train_logger.info("win_score:" + str(game_res.win_score))
-        else:
-            train_logger.info("the game ended in draw")
+        self.build_game_res()
         # after the game ends, reward the winner and penalise the loser
-        self.reward_and_penalise(game_res)
+        self.reward_and_penalise(self.game_res)
 
-    def game_res(self) -> Result:
+    def build_game_res(self):
         """
         returns a reference to the winner agent, with the score. (offset)
         """
@@ -390,15 +394,18 @@ class ACKalahEnv(KalahEnv):
         south_offset = self.board.store_offset(self.agent_s.side)
         if south_offset > 0:
             # south is the winner
-            return Result(draw=False, winner=self.agent_s,
-                              loser=self.agent_n, win_score=south_offset)
+            self.game_res = Result(draw=False, winner=self.agent_s,
+                                   loser=self.agent_n, win_score=south_offset,
+                                   board=self.board)
         elif south_offset < 0:
             # north is the winner
-            return Result(draw=False, winner=self.agent_n,
-                              loser=self.agent_s, win_score=(-1 * south_offset))
+            self.game_res = Result(draw=False, winner=self.agent_n,
+                                   loser=self.agent_s, win_score=(-1 * south_offset),
+                                   board=self.board)
         else:
             # game ended in a draw
-            return Result(draw=True, winner=None, loser=None, win_score=0)
+            self.game_res = Result(draw=True, winner=None, loser=None, win_score=0,
+                                   board=self.board)
 
     # should be implemented
     def reward_and_penalise(self, game_res: Result):
@@ -410,6 +417,7 @@ class ACKalahEnv(KalahEnv):
         """
         # make sure you clear the buffers
         super().reset()
+        self.game_res = None
         self.reset_buffers()
 
     def reset_buffers(self):
@@ -435,7 +443,7 @@ class ACKalahEnv(KalahEnv):
     def reward_winner(self, winner: ACAgent, win_score: int):
         for idx, reward in enumerate(winner.reward_buffer):
             # increase the rewards by x %, which is proportional to win_score %
-            winner.reward_buffer[idx] = reward * (1 + (win_score / self.board.seeds)) + self.h_params.WIN_BONUS
+            winner.reward_buffer[idx] = reward * (1 + (win_score / self.board.seeds)) + self.h_params.win_bonus
 
     def penalise_loser(self, loser: ACAgent, win_score: int):
         for idx, reward in enumerate(loser.reward_buffer):
@@ -488,7 +496,7 @@ class ACOppKalahEnv(ACKalahEnv):
 
     def episode(self, epi_num: int, optimizer: torch.optim.Optimizer) -> OppEpisode:
         return OppEpisode(self.ac_agent, self.opp_agent,
-                          epi_num, self.h_params, optimizer)
+                          epi_num, self.h_params, optimizer, self.game_res)
 
 
 class ACSelfKalahEnv(ACKalahEnv):
@@ -524,4 +532,4 @@ class ACSelfKalahEnv(ACKalahEnv):
 
     def episode(self, epi_num: int, optimizer: torch.optim.Optimizer) -> SelfEpisode:
         return SelfEpisode(self.agent_n, self.agent_s,
-                           epi_num, self.h_params, optimizer)
+                           epi_num, self.h_params, optimizer, self.game_res)

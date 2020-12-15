@@ -1,9 +1,8 @@
 import asyncio
 import logging
 # code reference: https://stackoverflow.com/a/48507121
-from asyncio import Future
 
-from config import HOST, PORT
+from kalah_python.config import HOST, PORT
 
 
 def handle_exception(loop, context):
