@@ -109,3 +109,24 @@ Pytorch tutorial - https://torlenor.org/machine%20learning/reinforcement%20learn
 - train.py
 - parsing the logs to get win rate 
 - research into the theoretical side of the approach.
+
+
+
+--- 
+
+17th of December
+
+## Same problem with
+- PyC? -> python compiler Python -> C  (might be Cython).
+- PyPi
+
+
+## reflection on Minimax
+- python3 is not fast. The complexity is the same, but the running time is slower than a C++ version.
+- translation is impossible
+- improvements in complexity? -> we already have alpha-beta pruning (might be incorrect). taking 3 seconds for move.
+- If we could speed it up by only changing how it runs in low-level, we could use it.
+
+
+## Reinforcement Learning
+- see if we could swap the rewards with heuristics from minimax.

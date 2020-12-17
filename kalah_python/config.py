@@ -12,7 +12,7 @@ def now() -> str:
     return now_obj.strftime("%d_%m_%Y__%H_%M_%S")
 
 
-# hostname and port number to host the server socket
+# hostname and port number to host the server socket (default values)
 HOST = 'localhost'
 PORT = 12346
 

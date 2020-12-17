@@ -1,6 +1,7 @@
 from kalah_python.utils.ac import ActorCritic
 from kalah_python.utils.agents import ACAgent
 from kalah_python.utils.board import Board
+from kalah_python.utils.enums import Action
 from kalah_python.utils.server import Server
 from kalah_python.config import HOST, PORT
 import torch
@@ -19,7 +20,6 @@ def main():
     args = parser.parse_args()
     model_path = args.model_path
     # load a pretrained model, and host.
-    from kalah_python.utils.enums import Action
     ac_model = ActorCritic(state_size=Board.STATE_SIZE, action_size=len(Action))
     ac_model.load_state_dict(torch.load(model_path))
     server = Server(agent=ACAgent(ac_model, buffer=False),
