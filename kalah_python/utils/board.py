@@ -1,32 +1,14 @@
+
 from typing import List
+
 from termcolor import colored
 import numpy as np
-import enum
 
-
-class Side(enum.Enum):
-    NORTH = enum.auto()
-    SOUTH = enum.auto()
-
-    def opposite(self) -> 'Side':
-        if self == Side.NORTH:
-            return Side.SOUTH
-        elif self == Side.SOUTH:
-            return Side.NORTH
-        else:
-            raise ValueError("invalid side:" + str(self))
-
-    def store_idx(self) -> int:
-        if self == Side.NORTH:
-            return 0
-        elif self == Side.SOUTH:
-            return 7
-        else:
-            raise ValueError("invalid side:" + str(self))
+from kalah_python.utils.enums import Side
 
 
 class Board:
-
+    STATE_SIZE: int = 17
     NORTH_ROW: int = 0
     SOUTH_ROW: int = 1
     HOLES_PER_SIDE: int = 7
@@ -49,7 +31,7 @@ class Board:
     def opposite_hole_idx(hole_idx: int) -> int:
         if hole_idx < 1 or hole_idx > 7:  # error check
             raise ValueError("hole_idx is out of range.")
-        return 7 - hole_idx + 1
+        return Board.HOLES_PER_SIDE - hole_idx + 1
 
     def nonzero_holes(self, side: Side) -> List[int]:
         return [
@@ -64,22 +46,20 @@ class Board:
         Not to be used for actor critic.
         :return:
         """
-        #
         board_state = change_msg.split(";")[2]
         north_state = np.array(
-            [int(board_state.split(",")[7])]
-            + [int(seed) for seed in board_state.split(",")[:7]]
+            [int(board_state.split(",")[Board.HOLES_PER_SIDE])]
+            + [int(seed) for seed in board_state.split(",")[:Board.HOLES_PER_SIDE]]
         )  # 1,2,3,4,5,6,7 -- store
         south_state = np.array(
             [int(board_state.split(",")[-1])]
-            + [int(seed) for seed in board_state.split(",")[8:-1]]
+            + [int(seed) for seed in board_state.split(",")[Board.HOLES_PER_SIDE + 1:-1]]
         )  # 1,2,3,4,5,6,7 -- store
         if self.north_board.shape != north_state.shape or self.south_board.shape != south_state.shape:
             raise ValueError("shape mismatch")
         # just copy the values into the board from the new board
         np.copyto(dst=self.north_board, src=north_state)
         np.copyto(dst=self.south_board, src=south_state)
-
 
     def reset(self):
         # just copy the init.
@@ -139,22 +119,22 @@ class Board:
         else:
             raise ValueError("Invalid side:" + str(side))
 
-    def get_hoard_side_value(self, side: Side):
-        value = 0
-        if side == Side.NORTH:
-            for seeds in self.north_holes:
-                value += seeds
-        elif side == Side.SOUTH:
-            for seeds in self.south_holes:
-                value += seeds
-        else:
-            raise ValueError("Invalid side:" + str(side))
-        return value
-
     def store_offset(self, side: Side) -> int:
         return self.store(side) - self.store(side.opposite())
 
-
+    def board_flat(self, side: Side) -> np.ndarray:
+        """
+        returns a vector (1D) representation of the board.
+        note that the order is: (your_side, opp_side)
+        :return:
+        """
+        # just concatenate the two boards.
+        if side == Side.NORTH:
+            return np.concatenate((self.south_board, self.north_board, np.array([0])))
+        elif side == Side.SOUTH:
+            return np.concatenate((self.south_board, self.north_board, np.array([1])))
+        else:
+            raise ValueError("Invalid error: " + str(side))
 
     # aliases - getters
     @property
@@ -183,6 +163,10 @@ class Board:
         return np.copy(self.south_board[1:])
 
     @property
+    def seeds(self) -> int:
+        return self.north_board.sum() + self.south_board.sum()
+
+    @property
     def board_size(self) -> int:
         """
         returns the number of holes (including the stores)
@@ -190,16 +174,6 @@ class Board:
         :return:
         """
         return self.north_board.size + self.south_board.size
-
-    @property
-    def board_flat(self) -> np.ndarray:
-        """
-        returns a vector (1D) representation of the board.
-        this will be the input to ac model.
-        :return:
-        """
-        # just concatenate the two boards.
-        return np.concatenate((self.north_board, self.south_board))
 
     #  setters
     def set_hole(self, hole_idx: int, side: Side, seeds: int):
@@ -209,6 +183,18 @@ class Board:
             self.south_board[hole_idx] = seeds
         else:
             raise ValueError("Invalid side:" + str(side))
+
+    def get_hoard_side_value(self, side: Side):
+        value = 0
+        if side == Side.NORTH:
+            for seeds in self.north_holes:
+                value += seeds
+        elif side == Side.SOUTH:
+            for seeds in self.south_holes:
+                value += seeds
+        else:
+            raise ValueError("Invalid side:" + str(side))
+        return value
 
     def __str__(self) -> str:
         """
