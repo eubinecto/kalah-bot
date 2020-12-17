@@ -1,6 +1,7 @@
 from kalah_python.utils.server import Server
 from kalah_python.utils.agents import MiniMaxAgent
-from config import HOST, PORT
+from kalah_python.config import HOST, PORT
+
 
 def main():
     server = Server(agent=MiniMaxAgent())
