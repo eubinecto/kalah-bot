@@ -1,3 +1,7 @@
 /.idea
 /kalahenv
 /kalah_python/data
+/g25.zip
+__pycache__/
+kalah_python/__pycache__/
+kalah_python/utils/__pycache__/
