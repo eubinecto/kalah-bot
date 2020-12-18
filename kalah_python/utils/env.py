@@ -15,6 +15,7 @@ from sys import stdout
 EPS = np.finfo(np.float32).eps.item()  # the smallest possible value (epsilon)
 
 # for debugging
+torch.autograd.set_detect_anomaly(True)
 logging.basicConfig(stream=stdout, level=logging.INFO)
 
 DELIM = "=================================================="
@@ -62,6 +63,7 @@ class Episode:
             self.value_losses.append(F.smooth_l1_loss(critique.squeeze(), disc_reward))
 
     def build_loss(self):
+        # add all the oss
         loss = torch.stack(self.policy_losses).sum() \
                + torch.stack(self.value_losses).sum()
         self.loss = loss
