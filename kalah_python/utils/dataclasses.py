@@ -1,16 +1,16 @@
 from dataclasses import dataclass
 
-import torch
+# for RL.
+# import torch
+# from kalah_python.utils.enums import Action
 
-from kalah_python.utils.enums import Action
 
-
-@dataclass
-class ActionInfo:
-    logit: torch.Tensor
-    prob: torch.Tensor
-    critique: torch.Tensor
-    action: Action
+# @dataclass
+# class ActionInfo:
+#     logit: torch.Tensor
+#     prob: torch.Tensor
+#     critique: torch.Tensor
+#     action: Action
 
 
 # hyper parameters for actor-critic

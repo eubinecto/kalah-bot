@@ -14,13 +14,12 @@ java -jar ./kalah/ManKalah.jar "java -jar ./kalah/MKRefAgent.jar" "nc localhost 
 ## Running the submission
 first, unzip the archive.
 ```
-unzip g25.zip -d .
+unzip g25.zip -d ./
 ```
-activate the virtualenv included in the archive
+
+start hosting the agent.
+If you want the agent to listen to server forever even after a game ends,
+set `--run_forever` to True.
 ```
-source activate kalahenv/bin/activate
-```
-start hosting the agent
-```
-python3 -m kalah_python.host_minimax_agent
+python3 -m kalah_python.host_minimax_agent --host=localhost --port=12345 --listen_forever=True
 ```

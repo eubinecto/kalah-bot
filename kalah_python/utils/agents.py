@@ -1,17 +1,22 @@
 import copy
 from functools import lru_cache
-from typing import Optional, Callable, List, Tuple
+from typing import Optional, Callable, List
 import numpy as np
-from torch.distributions import Categorical
-from kalah_python.utils.ac import ActorCritic
+
 from kalah_python.utils.board import Board, Side
 from transitions import Machine
 from overrides import overrides
 import random
-import torch
-from kalah_python.utils.dataclasses import ActionInfo
+
 from kalah_python.utils.enums import AgentState, Action
 import logging
+
+# only used for RL.
+# from torch.distributions import Categorical
+# from kalah_python.utils.ac import ActorCritic
+# import torch
+# from kalah_python.utils.dataclasses import ActionInfo
+from typing import Tuple
 
 logger = logging.getLogger("transitions.core")
 logger.setLevel(logging.WARN)
@@ -214,80 +219,80 @@ class UserAgent(Agent):
         return "user_agent|" + super().__str__()
 
 
-class ACAgent(Agent):
-    """
-    Actor-Critic agent.
-    """
-    @overrides
-    def __init__(self, ac_model: ActorCritic, board: Board = None,
-                 buffer: bool = True, verbose: bool = False):
-        """
-        :param ac_model:
-        :param board:
-        :param buffer: True: save actions & rewards to the buffer. Set this True if you are training,
-        False otherwise.
-        """
-        super(ACAgent, self).__init__(board=board, verbose=verbose, buffer=buffer)
-        self.ac_model: ActorCritic = ac_model
-        # buffers to be used for.. backprop
-        # ac agent maintains an action info buffer, along with action & reward buffers
-        self.action_info_buffer: List[ActionInfo] = list()
-
-    @overrides
-    def decide_on_action(self, possible_actions: List[Action]) -> Action:
-        """
-        :param possible_actions:
-        :return:
-        """
-
-        # load the pretrained model from data. (<1GB)
-        action_mask = self.action_mask(possible_actions)
-        states = torch.tensor(self.board.board_flat(self.side), dtype=torch.float32)  # board (flattened) representation
-        action_mask = torch.tensor(action_mask, dtype=torch.float32)  # mask impossible actions
-        probs, critique = self.ac_model.forward(states, action_mask)  # prob. dist over the actions, critique on states
-        action, logit, prob = self.sample_action(probs)
-        if self.buffer:
-            self.action_info_buffer.append(ActionInfo(logit, prob, critique, action))
-        # sample an action according to the prob distribution.
-        if self.verbose:
-            print("------decide on action------")
-            print(self.board)
-            print("side:" + str(self.side))
-            print("next action:" + str(action))
-        return action
-
-    @staticmethod
-    def sample_action(action_probs: torch.Tensor) -> Tuple[Action, torch.Tensor, torch.Tensor]:
-        m = Categorical(action_probs)
-        # sample an index to an action (an index to action_probs)
-        action: torch.Tensor = m.sample()
-        if action.item() == 7:
-            value = -1
-        else:
-            value = action.item() + 1
-        # log_prob is a tensor.
-        return Action(value), m.log_prob(action), m.probs[action]
-
-    @staticmethod
-    def action_mask(possible_actions: List[Action]) -> np.ndarray:
-        """
-        :param possible_actions:
-        :return:
-        """
-        all_actions = Action.all_actions()
-        return np.array([
-            # if the action is possible, set the value to 1. if not, set
-            # the value to 0.
-            1 if action in possible_actions else 0
-            for action in all_actions
-        ])
-
-    def clear_buffers(self):
-        self.reward_buffer.clear()
-        self.action_info_buffer.clear()
-
-    def __str__(self) -> str:
-        return "ac_agent|" + super().__str__()
+# class ACAgent(Agent):
+#     """
+#     Actor-Critic agent.
+#     """
+#     @overrides
+#     def __init__(self, ac_model: ActorCritic, board: Board = None,
+#                  buffer: bool = True, verbose: bool = False):
+#         """
+#         :param ac_model:
+#         :param board:
+#         :param buffer: True: save actions & rewards to the buffer. Set this True if you are training,
+#         False otherwise.
+#         """
+#         super(ACAgent, self).__init__(board=board, verbose=verbose, buffer=buffer)
+#         self.ac_model: ActorCritic = ac_model
+#         # buffers to be used for.. backprop
+#         # ac agent maintains an action info buffer, along with action & reward buffers
+#         self.action_info_buffer: List[ActionInfo] = list()
+#
+#     @overrides
+#     def decide_on_action(self, possible_actions: List[Action]) -> Action:
+#         """
+#         :param possible_actions:
+#         :return:
+#         """
+#
+#         # load the pretrained model from data. (<1GB)
+#         action_mask = self.action_mask(possible_actions)
+#         states = torch.tensor(self.board.board_flat(self.side), dtype=torch.float32)  # board (flattened) representation
+#         action_mask = torch.tensor(action_mask, dtype=torch.float32)  # mask impossible actions
+#         probs, critique = self.ac_model.forward(states, action_mask)  # prob. dist over the actions, critique on states
+#         action, logit, prob = self.sample_action(probs)
+#         if self.buffer:
+#             self.action_info_buffer.append(ActionInfo(logit, prob, critique, action))
+#         # sample an action according to the prob distribution.
+#         if self.verbose:
+#             print("------decide on action------")
+#             print(self.board)
+#             print("side:" + str(self.side))
+#             print("next action:" + str(action))
+#         return action
+#
+#     @staticmethod
+#     def sample_action(action_probs: torch.Tensor) -> Tuple[Action, torch.Tensor, torch.Tensor]:
+#         m = Categorical(action_probs)
+#         # sample an index to an action (an index to action_probs)
+#         action: torch.Tensor = m.sample()
+#         if action.item() == 7:
+#             value = -1
+#         else:
+#             value = action.item() + 1
+#         # log_prob is a tensor.
+#         return Action(value), m.log_prob(action), m.probs[action]
+#
+#     @staticmethod
+#     def action_mask(possible_actions: List[Action]) -> np.ndarray:
+#         """
+#         :param possible_actions:
+#         :return:
+#         """
+#         all_actions = Action.all_actions()
+#         return np.array([
+#             # if the action is possible, set the value to 1. if not, set
+#             # the value to 0.
+#             1 if action in possible_actions else 0
+#             for action in all_actions
+#         ])
+#
+#     def clear_buffers(self):
+#         self.reward_buffer.clear()
+#         self.action_info_buffer.clear()
+#
+#     def __str__(self) -> str:
+#         return "ac_agent|" + super().__str__()
 
 
 class GameNode:
