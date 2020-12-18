@@ -12,7 +12,8 @@ import logging
 fh_random = logging.FileHandler(TRAIN_RANDOM_LOG)
 fh_random.setLevel(logging.DEBUG)
 train_random_logger.addHandler(fh_random)
-
+transition_logger = logging.getLogger("transitions.core")
+transition_logger.setLevel(logging.WARN)
 
 # h_params setup
 h_params_config = {

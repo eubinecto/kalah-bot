@@ -12,9 +12,9 @@ class Actor(nn.Module):
         self.action_size = action_size
         # feature extraction -> action logits
         self.linear_layers = nn.Sequential(
-            nn.Linear(in_size, 128),
+            nn.Linear(in_size, 32),
             nn.ReLU(inplace=False),
-            nn.Linear(128, action_size)
+            nn.Linear(32, action_size)
         )
 
     def forward(self, x: torch.Tensor, action_mask: torch.Tensor) -> torch.Tensor:
@@ -37,7 +37,7 @@ class Actor(nn.Module):
         y_1_masked = torch.where(y_2 == 0, neg_inf, y_2)
         y_3 = F.softmax(y_1_masked, dim=0)  # logits -> probability distributions.
         y_4 = y_3 * action_mask  # do the mask again
-        return y_4.clone()  # probability distribution over the possible actions.
+        return y_4  # probability distribution over the possible actions.
 
 
 class Critic(nn.Module):
@@ -47,9 +47,9 @@ class Critic(nn.Module):
         self.in_size = in_size
         # feature extraction -> critique value
         self.linear_layers = nn.Sequential(
-            nn.Linear(in_size, 128),
+            nn.Linear(in_size, 32),
             nn.ReLU(inplace=False),  # relu activation
-            nn.Linear(128, 1)
+            nn.Linear(32, 1)
         )
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
@@ -58,7 +58,7 @@ class Critic(nn.Module):
         if x.shape[0] != self.in_size:  # error handling.
             raise ValueError("shape mismatch:{}!={}".format(x.shape[0], self.in_size))
         y_1 = self.linear_layers(x)
-        return y_1.clone()  # critique of the states
+        return y_1  # critique of the states
 
 
 class ActorCritic(nn.Module):
@@ -67,14 +67,10 @@ class ActorCritic(nn.Module):
     """
     def __init__(self, state_size: int, action_size: int):
         super(ActorCritic, self).__init__()
-        self.linear_layers = nn.Sequential(
-            nn.Linear(state_size, 128),
-            nn.ReLU(inplace=False),
-            nn.Linear(128, 128),
-            nn.ReLU(inplace=False)
-        )
-        self.actor = Actor(in_size=128, action_size=action_size)
-        self.critic = Critic(in_size=128)
+        self.state_size = state_size
+        self.action_size = action_size
+        self.actor = Actor(in_size=state_size, action_size=action_size)
+        self.critic = Critic(in_size=state_size)
 
     def forward(self, x: torch.Tensor, action_mask: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -82,7 +78,6 @@ class ActorCritic(nn.Module):
         """
         if x.isnan().any():
             raise ValueError("some of the values of x is nan:" + str(x))
-        y_1 = self.linear_layers.forward(x)
-        y_2 = self.actor.forward(y_1, action_mask)  # features -> action probs
-        y_4 = self.critic.forward(y_1)  # features -> state evaluation (single value)
-        return y_2.clone(), y_4.clone()  # action_probs, critique.
+        y_1 = self.actor.forward(x, action_mask)  # features -> action probs
+        y_2 = self.critic.forward(x)  # features -> state evaluation (single value)
+        return y_1, y_2  # action_probs, critique.

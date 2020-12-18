@@ -36,6 +36,7 @@ def main():
     env = ACSelfKalahEnv(board, agent_s, agent_n, h_params)  # instantiate a game environment.
     train = Train(ac_kalah_env=env, ac_model=ac_model,
                   logger=train_self_logger, save_path=TRAIN_SELF_STATE_DICT)
+    # start training and save the model.
     train.start()
     train.save_model()
 

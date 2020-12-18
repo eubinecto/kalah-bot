@@ -15,7 +15,6 @@ from sys import stdout
 EPS = np.finfo(np.float32).eps.item()  # the smallest possible value (epsilon)
 
 # for debugging
-torch.autograd.set_detect_anomaly(True)
 logging.basicConfig(stream=stdout, level=logging.INFO)
 
 DELIM = "=================================================="

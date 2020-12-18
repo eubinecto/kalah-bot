@@ -4,6 +4,9 @@ from kalah_python.utils.ac import ActorCritic
 from kalah_python.utils.env import ACKalahEnv
 import time
 import logging
+from torchsummary import summary
+
+torch.autograd.set_detect_anomaly(True)
 
 
 class Train:
@@ -27,6 +30,9 @@ class Train:
     def start(self):
         start_time = time.time()
         self.logger.info("h_params: " + str(self.h_params))
+        # self.logger.info("model: " + summary(self.ac_model,
+        #                                      input_size=[(self.ac_model.state_size,),
+        #                                                  (self.ac_model.action_size,)]))
         self.logger.info("north_player:{}\nsouth_player:{}"
                           .format(str(self.ac_kalah_env.agent_n),
                                   str(self.ac_kalah_env.agent_s)))

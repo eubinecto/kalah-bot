@@ -25,7 +25,7 @@ class Action(Enum):
     MOVE_5TH_WELL = 5
     MOVE_6TH_WELL = 6
     MOVE_7TH_WELL = 7
-    SWAP = 's'  # this is not a number
+    SWAP = -1  # this is not a number
 
     @staticmethod
     def all_actions() -> List['Action']:
@@ -225,13 +225,17 @@ class RandomAgent(Agent):
         :param possible_actions:
         :return:
         """
-        print("------decide_on_action----")
-        print("It is your turn:")
-        print(self.board)
-        print("your side:", self.side)
         action = random.choice(possible_actions)
-        print("random action: " + str(action))
+        if self.verbose:
+            print("------decide_on_action----")
+            print("It is your turn:")
+            print(self.board)
+            print("your side:", self.side)
+            print("random action: " + str(action))
         return action
+
+    def __str__(self):
+        return "random_agent" + super().__str__()
 
 
 class UserAgent(Agent):
