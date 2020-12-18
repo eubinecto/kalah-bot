@@ -8,7 +8,7 @@ java -jar ./kalah/ManKalah.jar "java -jar ./kalah/MKRefAgent.jar" "java -jar ./k
 ```
 or:
 ```
-java -jar ./kalah/ManKalah.jar "java -jar ./kalah/MKRefAgent.jar" "nc localhost 12345"
+java -jar ./kalah/ManKalah.jar "java -jar ./kalah/MKRefAgent.jar" "nc localhost 12346"
 ```
 
 ## Running the submission

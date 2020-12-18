@@ -23,7 +23,7 @@ DELIM = "=================================================="
 
 class Episode:
     def __init__(self, epi_num: int, h_params: HyperParams,
-                 optimizer: torch.optim.Optimizer, game_res: 'Result'):
+                 optimizer: torch.optim.Optimizer, game_res: 'GameResult'):
         self.epi_num = epi_num
         self.h_params = h_params
         self.optimizer = optimizer
@@ -87,13 +87,14 @@ class Episode:
             logger.info("win_score:" + str(self.game_res.win_score))
         else:
             logger.info("the game ended in draw")
+        logger.info("loss:" + str(self.loss.item()))
 
 
 class OppEpisode(Episode):
 
     def __init__(self, ac_agent: ACAgent, opp_agent: Agent,
                  epi_num: int, h_params: HyperParams,
-                 optimizer: torch.optim.Optimizer, game_res: 'Result'):
+                 optimizer: torch.optim.Optimizer, game_res: 'GameResult'):
         super().__init__(epi_num, h_params, optimizer, game_res)
         self.ac_agent_action_infos = ac_agent.action_info_buffer
         self.ac_agent_rewards = ac_agent.reward_buffer
@@ -126,7 +127,7 @@ class OppEpisode(Episode):
 class SelfEpisode(Episode):
     def __init__(self, ac_agent_n: ACAgent, ac_agent_s: ACAgent,
                  epi_num: int, h_params: HyperParams,
-                 optimizer: torch.optim.Optimizer, game_res: 'Result'):
+                 optimizer: torch.optim.Optimizer, game_res: 'GameResult'):
         # actions for the two actions
         super().__init__(epi_num, h_params, optimizer, game_res)
         self.ac_agent_n_action_infos = ac_agent_n.action_info_buffer
@@ -169,12 +170,19 @@ class SelfEpisode(Episode):
 
 
 @dataclass
-class Result:
+class GameResult:
     draw: bool
     win_score: int  # should always be positive
     winner: Union[Agent, ACAgent, None]
     loser: Union[Agent, ACAgent, None]
     board: Board
+
+
+@dataclass
+class MoveResult:
+    new_seeds_added_to_player_store: int
+    player_board: np.ndarray
+    opp_board: np.ndarray
 
 
 class KalahEnv:
@@ -217,7 +225,7 @@ class KalahEnv:
         # reset the env state as well
         self.env_state = KalahEnvState.INIT
 
-    def update_env(self, turn_agent: Agent) -> int:
+    def update_env(self, turn_agent: Agent) -> MoveResult:
         """
         this should not change any signals, whatsoever.
         :param turn_agent:
@@ -233,12 +241,12 @@ class KalahEnv:
             raise ValueError("Action should have been registered, but it is not.")
         # have to commit & agent action before execute action (due to swap)
         if turn_agent.action == Action.SWAP:
-            env_state, seeds_added_to_store = self.execute_swap()
+            env_state, move_res = self.execute_swap()
         else:
-            env_state, seeds_added_to_store = self.execute_move(turn_agent.action, turn_agent.board,
-                                                                turn_agent.side, turn_agent.state)
+            env_state, move_res = self.execute_move(turn_agent.action, turn_agent.board,
+                                                    turn_agent.side, turn_agent.state)
         self.env_state = env_state
-        return seeds_added_to_store
+        return move_res
 
     def agent(self, side: Side):
         if side == Side.NORTH:
@@ -278,15 +286,21 @@ class KalahEnv:
         else:
             raise ValueError("Invalid env_state:" + str(self.env_state))
 
-    def execute_swap(self) -> Tuple[KalahEnvState, int]:
+    def execute_swap(self) -> Tuple[KalahEnvState, MoveResult]:
         # the agent trying to swap must be the north agent.
         # now swap the agents
+        # note that the sides won't be changed yet.
         self.agent_n, self.agent_s = self.agent_s, self.agent_n
-        seeds_added_to_store = 0
-        return KalahEnvState.NORTH_TURN, seeds_added_to_store
+        # was north agent, now south agent.
+        # so new seeds added must be the offset from south side.
+        new_seeds = self.board.store_offset(Side.SOUTH)
+        player_board = self.board.south_board
+        opp_board = self.board.north_board
+        return KalahEnvState.NORTH_TURN, MoveResult(new_seeds, player_board, opp_board)
 
     @staticmethod
-    def execute_move(action: Action, board: Board, side: Side, agent_state: AgentState) -> Tuple[KalahEnvState, int]:
+    def execute_move(action: Action, board: Board, side: Side, agent_state: AgentState) ->\
+            Tuple[KalahEnvState, MoveResult]:
         """
         :param: side: the current side of the agent
         :return: state, reward and done.
@@ -343,6 +357,13 @@ class KalahEnv:
         elif not board.nonzero_holes(side.opposite()):
             finished_side = side.opposite()
 
+        if side == Side.NORTH:
+            player_board = board.south_board
+            opp_board = board.north_board
+        else:
+            player_board = board.north_board
+            opp_board = board.south_board
+
         if finished_side:
             seeds = 0
             collecting_side = finished_side.opposite()
@@ -353,18 +374,18 @@ class KalahEnv:
             seeds_added_to_store += seeds
             # here, we are not returning game over, but returning
             # game_ends
-            return KalahEnvState.GAME_ENDS, seeds_added_to_store
+            return KalahEnvState.GAME_ENDS, MoveResult(seeds_added_to_store, player_board, opp_board)
         # your store minus opponent's store at the move
         if sow_hole == 0 and agent_state != AgentState.DECIDE_ON_1ST_MOVE:
             if side == Side.SOUTH:
-                return KalahEnvState.SOUTH_TURN, seeds_added_to_store
+                return KalahEnvState.SOUTH_TURN, MoveResult(seeds_added_to_store, player_board, opp_board)
             else:
-                return KalahEnvState.NORTH_TURN, seeds_added_to_store
+                return KalahEnvState.NORTH_TURN, MoveResult(seeds_added_to_store, player_board, opp_board)
         else:
             if side == Side.SOUTH:
-                return KalahEnvState.NORTH_TURN, seeds_added_to_store
+                return KalahEnvState.NORTH_TURN, MoveResult(seeds_added_to_store, player_board, opp_board)
             else:
-                return KalahEnvState.SOUTH_TURN, seeds_added_to_store
+                return KalahEnvState.SOUTH_TURN, MoveResult(seeds_added_to_store, player_board, opp_board)
 
     def render(self):
         """
@@ -381,7 +402,7 @@ class ACKalahEnv(KalahEnv):
                  h_params: HyperParams):
         super().__init__(board, agent_s, agent_n)
         self.h_params = h_params
-        self.game_res: Optional[Result] = None
+        self.game_res: Optional[GameResult] = None
 
     def play_game(self):
         super().play_game()
@@ -399,21 +420,21 @@ class ACKalahEnv(KalahEnv):
         south_offset = self.board.store_offset(self.agent_s.side)
         if south_offset > 0:
             # south is the winner
-            self.game_res = Result(draw=False, winner=self.agent_s,
-                                   loser=self.agent_n, win_score=south_offset,
-                                   board=self.board)
+            self.game_res = GameResult(draw=False, winner=self.agent_s,
+                                       loser=self.agent_n, win_score=south_offset,
+                                       board=self.board)
         elif south_offset < 0:
             # north is the winner
-            self.game_res = Result(draw=False, winner=self.agent_n,
-                                   loser=self.agent_s, win_score=(-1 * south_offset),
-                                   board=self.board)
+            self.game_res = GameResult(draw=False, winner=self.agent_n,
+                                       loser=self.agent_s, win_score=(-1 * south_offset),
+                                       board=self.board)
         else:
             # game ended in a draw
-            self.game_res = Result(draw=True, winner=None, loser=None, win_score=0,
-                                   board=self.board)
+            self.game_res = GameResult(draw=True, winner=None, loser=None, win_score=0,
+                                       board=self.board)
 
     # should be implemented
-    def reward_and_penalise(self, game_res: Result):
+    def reward_and_penalise(self, game_res: GameResult):
         raise NotImplementedError
 
     def reset(self):
@@ -432,17 +453,47 @@ class ACKalahEnv(KalahEnv):
         raise NotImplementedError
 
     # ----- reward: every move  -------- #
-    def reward(self, side: Side, new_seeds: int) -> float:
+    def reward(self, move_res: MoveResult) -> float:
         """
         return new_seeds_w * new seeds + offset_w * offset(side)
         """
         # note: the rewards must be non-negative
-        offset = self.board.store_offset(side)
+        r1 = self.reward_maximize_seeds_in_player_store(move_res.player_board)
+        r2 = self.reward_maximize_seeds_on_player_side(move_res.player_board)
+        r3 = self.reward_maximize_store_advantage(move_res.player_board, move_res.opp_board)
+        r4 = self.reward_minimize_seeds_in_opp_store(self.board.seeds, move_res.opp_board)
+        r5 = self.reward_minimize_seeds_in_rightmost_pit(self.board.seeds, move_res.player_board)
+        r6 = self.reward_minimize_seeds_on_opponent_side(self.board.seeds, move_res.opp_board)
+        return r1 + r2 + r3 + r4 + r5 + r6
+
+    # these are all rewards that must be computed after the move is done.
+    @staticmethod
+    def reward_maximize_seeds_on_player_side(player_board: np.ndarray) -> int:
+        return sum(player_board)
+
+    @staticmethod
+    def reward_minimize_seeds_on_opponent_side(all_seeds: int, opp_board: np.ndarray) -> int:
+        return all_seeds - sum(opp_board)
+
+    @staticmethod
+    def reward_maximize_seeds_in_player_store(player_board: np.ndarray) -> int:
+        return player_board[0]
+
+    @staticmethod
+    def reward_minimize_seeds_in_opp_store(all_seeds: int, opp_board: np.ndarray):
+        return all_seeds - opp_board[0]
+
+    @staticmethod
+    def reward_maximize_store_advantage(player_board: np.ndarray, opp_board: np.ndarray) -> int:
+        offset = player_board[0] - opp_board[0]
         if offset > 0:
-            reward = new_seeds + offset
+            return offset
         else:
-            reward = new_seeds
-        return reward
+            return 0
+
+    @staticmethod
+    def reward_minimize_seeds_in_rightmost_pit(all_seeds: int, player_board: np.ndarray) -> int:
+        return all_seeds - player_board[7]
 
     # ----- reward: won the game / lost the game  ---- #
     def reward_winner(self, winner: ACAgent, win_score: int):
@@ -461,8 +512,8 @@ class ACKalahEnv(KalahEnv):
         :param turn_agent:
         :return:
         """
-        seeds_added_to_store = super().update_env(turn_agent)
-        reward = self.reward(turn_agent.side, seeds_added_to_store)
+        move_res = super().update_env(turn_agent)
+        reward = self.reward(move_res)
         turn_agent.reward_buffer.append(reward)
 
 
@@ -477,7 +528,7 @@ class ACOppKalahEnv(ACKalahEnv):
         self.ac_agent = ac_agent  # maintains a reference to ac_agent
         self.opp_agent = opp_agent
 
-    def reward_and_penalise(self, game_res: Result):
+    def reward_and_penalise(self, game_res: GameResult):
         """
         reward the winner, penalise the loser, and penalise both
         if the game ended in draw.
@@ -518,7 +569,7 @@ class ACSelfKalahEnv(ACKalahEnv):
         self.agent_n.clear_buffers()
         self.agent_s.clear_buffers()
 
-    def reward_and_penalise(self, game_res: Result):
+    def reward_and_penalise(self, game_res: GameResult):
         """
         reward the winner, penalise the loser, and penalise both
         if the game ended in draw.

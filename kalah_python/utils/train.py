@@ -4,7 +4,6 @@ from kalah_python.utils.ac import ActorCritic
 from kalah_python.utils.env import ACKalahEnv
 import time
 import logging
-from torchsummary import summary
 
 torch.autograd.set_detect_anomaly(True)
 

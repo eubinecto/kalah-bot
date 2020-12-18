@@ -11,11 +11,12 @@ class Actor(nn.Module):
         self.in_size = in_size
         self.action_size = action_size
         # feature extraction -> action logits
-        self.linear_layers = nn.Sequential(
-            nn.Linear(in_size, 32),
-            nn.ReLU(inplace=False),
-            nn.Linear(32, action_size)
-        )
+        # self.linear_layers = nn.Sequential(
+        #     nn.Linear(in_size, 32),
+        #     nn.ReLU(inplace=False),
+        #     nn.Linear(32, action_size)
+        # )
+        self.action_head = nn.Linear(in_size, action_size)
 
     def forward(self, x: torch.Tensor, action_mask: torch.Tensor) -> torch.Tensor:
         """
@@ -27,7 +28,7 @@ class Actor(nn.Module):
             raise ValueError("some of the values of x is nan:" + str(x))
         if x.shape[0] != self.in_size:  # error handling.
             raise ValueError("shape mismatch:{}!={}".format(x.shape[0], self.in_size))
-        y_1 = self.linear_layers(x)
+        y_1 = self.action_head(x)
         # element-wise multiplication of two tensors
         # https://discuss.pytorch.org/t/how-to-do-elementwise-multiplication-of-two-vectors/13182/2
         y_2 = y_1 * action_mask
@@ -46,18 +47,19 @@ class Critic(nn.Module):
         super(Critic, self).__init__()
         self.in_size = in_size
         # feature extraction -> critique value
-        self.linear_layers = nn.Sequential(
-            nn.Linear(in_size, 32),
-            nn.ReLU(inplace=False),  # relu activation
-            nn.Linear(32, 1)
-        )
+        # self.linear_layers = nn.Sequential(
+        #     nn.Linear(in_size, 32),
+        #     nn.ReLU(inplace=False),  # relu activation
+        #     nn.Linear(32, 1)
+        # )
+        self.critic_head = nn.Linear(in_size, 1)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         if x.isnan().any():
             raise ValueError("some of the values of x is nan:" + str(x))
         if x.shape[0] != self.in_size:  # error handling.
             raise ValueError("shape mismatch:{}!={}".format(x.shape[0], self.in_size))
-        y_1 = self.linear_layers(x)
+        y_1 = self.critic_head(x)
         return y_1  # critique of the states
 
 
@@ -65,12 +67,14 @@ class ActorCritic(nn.Module):
     """
     implements both actor and critic in one model
     """
-    def __init__(self, state_size: int, action_size: int):
+    def __init__(self, state_size: int, action_size: int, neurons: int):
         super(ActorCritic, self).__init__()
         self.state_size = state_size
         self.action_size = action_size
-        self.actor = Actor(in_size=state_size, action_size=action_size)
-        self.critic = Critic(in_size=state_size)
+        self.neurons = neurons
+        self.linear = nn.Linear(state_size, neurons)
+        self.actor = Actor(in_size=neurons, action_size=action_size)
+        self.critic = Critic(in_size=neurons)
 
     def forward(self, x: torch.Tensor, action_mask: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         """
@@ -78,6 +82,7 @@ class ActorCritic(nn.Module):
         """
         if x.isnan().any():
             raise ValueError("some of the values of x is nan:" + str(x))
-        y_1 = self.actor.forward(x, action_mask)  # features -> action probs
-        y_2 = self.critic.forward(x)  # features -> state evaluation (single value)
-        return y_1, y_2  # action_probs, critique.
+        y_1 = self.linear(x)  # affine layer
+        y_2 = self.actor.forward(y_1, action_mask)  # features -> action probs
+        y_3 = self.critic.forward(y_1)  # features -> state evaluation (single value)
+        return y_2, y_3  # action_probs, critique.

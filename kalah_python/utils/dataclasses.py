@@ -20,17 +20,20 @@ class HyperParams:
     win_bonus: int = 10
     discount_factor: float = 0.90  # (gamma)
     learning_rate: float = 3e-2  # for optimizer
+    neurons: int = 512
 
     def __str__(self) -> str:
         return """
         num_episodes: {},
         win_bonus: {},
         DISCOUNT_FACTOR: {},
-        lr: {} 
+        lr: {},
+        neurons: {}
         """.format(
             self.num_episodes,
             self.win_bonus,
             self.discount_factor,
-            self.learning_rate
+            self.learning_rate,
+            self.neurons
         )
 

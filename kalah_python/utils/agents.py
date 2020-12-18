@@ -1,68 +1,20 @@
-from dataclasses import dataclass
+import copy
+from functools import lru_cache
 from typing import Optional, Callable, List, Tuple
-
 import numpy as np
 from torch.distributions import Categorical
-from functools import lru_cache
 from kalah_python.utils.ac import ActorCritic
 from kalah_python.utils.board import Board, Side
 from transitions import Machine
-from enum import Enum
 from overrides import overrides
 import random
 import torch
-import copy
 from kalah_python.utils.dataclasses import ActionInfo
-from kalah_python.utils.enums import AgentState
+from kalah_python.utils.enums import AgentState, Action
+import logging
 
-
-class Action(Enum):
-    # all possible moves are defined here.
-    MOVE_1ST_WELL = 1
-    MOVE_2ND_WELL = 2
-    MOVE_3RD_WELL = 3
-    MOVE_4TH_WELL = 4
-    MOVE_5TH_WELL = 5
-    MOVE_6TH_WELL = 6
-    MOVE_7TH_WELL = 7
-    SWAP = -1  # this is not a number
-
-    @staticmethod
-    def all_actions() -> List['Action']:
-        """
-        just get all the possible actions.
-        Note that they are ordered.
-        :return:
-        """
-        return list(Action)
-
-    @staticmethod
-    def move_actions() -> List['Action']:
-        """
-        :return: Only the move actions. (Everything but SWAP action)
-        """
-        return [
-            action
-            for action in Action
-            if action != Action.SWAP  # everything but swap
-        ]
-
-    def to_cmd(self):
-        if self == Action.SWAP:
-            # command for swap action
-            cmd = "SWAP\n".encode('utf8')
-        else:
-            # command for move action
-            cmd = "MOVE;{}\n".format(self.value).encode('utf8')
-        return cmd
-
-    @overrides
-    def __str__(self) -> str:
-        if self != Action.SWAP:
-            msg = "MOVE;{}".format(self.value)
-        else:
-            msg = "SWAP"
-        return msg
+logger = logging.getLogger("transitions.core")
+logger.setLevel(logging.WARN)
 
 
 class Agent:
@@ -212,6 +164,10 @@ class Agent:
 
 # subclasses of the Agent class.
 class RandomAgent(Agent):
+
+    def __init__(self, board: Board = None, verbose: bool = True, buffer: bool = True):
+        super().__init__(board, verbose, buffer)
+
     @overrides
     def decide_on_action(self, possible_actions: List[Action]) -> Action:
         """
@@ -227,8 +183,8 @@ class RandomAgent(Agent):
             print("random action: " + str(action))
         return action
 
-    def __str__(self):
-        return "random_agent" + super().__str__()
+    def __str__(self) -> str:
+        return "random_agent|" + super().__str__()
 
 
 class UserAgent(Agent):
@@ -253,6 +209,85 @@ class UserAgent(Agent):
         while not options.get(option_key, None):
             option_key = input("Choose an option:")
         return options[option_key]
+
+    def __str__(self) -> str:
+        return "user_agent|" + super().__str__()
+
+
+class ACAgent(Agent):
+    """
+    Actor-Critic agent.
+    """
+    @overrides
+    def __init__(self, ac_model: ActorCritic, board: Board = None,
+                 buffer: bool = True, verbose: bool = False):
+        """
+        :param ac_model:
+        :param board:
+        :param buffer: True: save actions & rewards to the buffer. Set this True if you are training,
+        False otherwise.
+        """
+        super(ACAgent, self).__init__(board=board, verbose=verbose, buffer=buffer)
+        self.ac_model: ActorCritic = ac_model
+        # buffers to be used for.. backprop
+        # ac agent maintains an action info buffer, along with action & reward buffers
+        self.action_info_buffer: List[ActionInfo] = list()
+
+    @overrides
+    def decide_on_action(self, possible_actions: List[Action]) -> Action:
+        """
+        :param possible_actions:
+        :return:
+        """
+
+        # load the pretrained model from data. (<1GB)
+        action_mask = self.action_mask(possible_actions)
+        states = torch.tensor(self.board.board_flat(self.side), dtype=torch.float32)  # board (flattened) representation
+        action_mask = torch.tensor(action_mask, dtype=torch.float32)  # mask impossible actions
+        probs, critique = self.ac_model.forward(states, action_mask)  # prob. dist over the actions, critique on states
+        action, logit, prob = self.sample_action(probs)
+        if self.buffer:
+            self.action_info_buffer.append(ActionInfo(logit, prob, critique, action))
+        # sample an action according to the prob distribution.
+        if self.verbose:
+            print("------decide on action------")
+            print(self.board)
+            print("side:" + str(self.side))
+            print("next action:" + str(action))
+        return action
+
+    @staticmethod
+    def sample_action(action_probs: torch.Tensor) -> Tuple[Action, torch.Tensor, torch.Tensor]:
+        m = Categorical(action_probs)
+        # sample an index to an action (an index to action_probs)
+        action: torch.Tensor = m.sample()
+        if action.item() == 7:
+            value = -1
+        else:
+            value = action.item() + 1
+        # log_prob is a tensor.
+        return Action(value), m.log_prob(action), m.probs[action]
+
+    @staticmethod
+    def action_mask(possible_actions: List[Action]) -> np.ndarray:
+        """
+        :param possible_actions:
+        :return:
+        """
+        all_actions = Action.all_actions()
+        return np.array([
+            # if the action is possible, set the value to 1. if not, set
+            # the value to 0.
+            1 if action in possible_actions else 0
+            for action in all_actions
+        ])
+
+    def clear_buffers(self):
+        self.reward_buffer.clear()
+        self.action_info_buffer.clear()
+
+    def __str__(self) -> str:
+        return "ac_agent|" + super().__str__()
 
 
 class GameNode:
@@ -455,7 +490,7 @@ def reward_capturing_move(capturing_move, last_seed_in_store):
 class MiniMaxAgent(Agent):
 
     @lru_cache()
-    def choose_mini_max_move(self, gnode, max_depth=4, alpha=-9999.0, beta=9999):
+    def choose_mini_max_move(self, gnode, max_depth=3, alpha=-9999.0, beta=9999):
         """
         Choose bestMove for gnode along w final value
         """
@@ -470,7 +505,8 @@ class MiniMaxAgent(Agent):
             for move in gnode.moves:
                 nxt_gnode = copy.deepcopy(gnode)
                 nxt_gnode.depth = gnode.depth + 1
-                print(f"Calling with the Move:{move}")
+                if self.verbose:
+                    print(f"Calling with the Move:{move}")
                 nxt_gnode.move(move)
                 self.choose_mini_max_move(nxt_gnode, max_depth, alpha, beta)  # recursion here
                 keep = (gnode.next is None)  # 1st of sequence
@@ -502,93 +538,19 @@ class MiniMaxAgent(Agent):
                 :param possible_actions:
                 :return:
                 """
-        print("------decide_on_action----")
-        print("It is your turn:")
-        print(self.board)
-        print("-------DEV------------")
-        print("Your side is:")
-        print(self.side)
+        if self.verbose:
+            print("------decide_on_action----")
+            print("It is your turn:")
+            print(self.board)
+            print("-------DEV------------")
+            print("Your side is:")
+            print(self.side)
         root = GameNode(self.board, self.side, possible_actions)
         root.best_move = Action.SWAP
         returned_state = self.choose_mini_max_move(root)
-        print(returned_state)
-        print(root)
-        print("-------END------------")
+        if self.verbose:
+            print(returned_state)
+            print(root)
+            print("-------END------------")
 
         return returned_state.best_move
-
-
-class ACAgent(Agent):
-    """
-    Actor-Critic agent.
-    """
-    @overrides
-    def __init__(self, ac_model: ActorCritic, board: Board = None,
-                 buffer: bool = True, verbose: bool = False):
-        """
-        :param ac_model:
-        :param board:
-        :param buffer: True: save actions & rewards to the buffer. Set this True if you are training,
-        False otherwise.
-        """
-        super(ACAgent, self).__init__(board=board, verbose=verbose, buffer=buffer)
-        self.ac_model: ActorCritic = ac_model
-        # buffers to be used for.. backprop
-        # ac agent maintains an action info buffer, along with action & reward buffers
-        self.action_info_buffer: List[ActionInfo] = list()
-
-    @overrides
-    def decide_on_action(self, possible_actions: List[Action]) -> Action:
-        """
-        :param possible_actions:
-        :return:
-        """
-
-        # load the pretrained model from data. (<1GB)
-        action_mask = self.action_mask(possible_actions)
-        states = torch.tensor(self.board.board_flat(self.side), dtype=torch.float32)  # board (flattened) representation
-        action_mask = torch.tensor(action_mask, dtype=torch.float32)  # mask impossible actions
-        probs, critique = self.ac_model.forward(states, action_mask)  # prob. dist over the actions, critique on states
-        action, logit, prob = self.sample_action(probs)
-        if self.buffer:
-            self.action_info_buffer.append(ActionInfo(logit, prob, critique, action))
-        # sample an action according to the prob distribution.
-        if self.verbose:
-            print("------decide on action------")
-            print(self.board)
-            print("side:" + str(self.side))
-            print("next action:" + str(action))
-        return action
-
-    @staticmethod
-    def sample_action(action_probs: torch.Tensor) -> Tuple[Action, torch.Tensor, torch.Tensor]:
-        m = Categorical(action_probs)
-        # sample an index to an action (an index to action_probs)
-        action: torch.Tensor = m.sample()
-        if action.item() == 7:
-            value = -1
-        else:
-            value = action.item() + 1
-        # log_prob is a tensor.
-        return Action(value), m.log_prob(action), m.probs[action]
-
-    @staticmethod
-    def action_mask(possible_actions: List[Action]) -> np.ndarray:
-        """
-        :param possible_actions:
-        :return:
-        """
-        all_actions = Action.all_actions()
-        return np.array([
-            # if the action is possible, set the value to 1. if not, set
-            # the value to 0.
-            1 if action in possible_actions else 0
-            for action in all_actions
-        ])
-
-    def clear_buffers(self):
-        self.reward_buffer.clear()
-        self.action_info_buffer.clear()
-
-    def __str__(self) -> str:
-        return "ac_agent|" + super().__str__()
