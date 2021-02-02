@@ -18,9 +18,10 @@ class Server:
         CHANGE = auto()
         END = auto()
 
-    def __init__(self, agent: Agent, listen_forever: bool = False):
+    def __init__(self, agent: Agent, listen_forever: bool):
         self.agent: Agent = agent
-        self.listen_forever: bool = listen_forever
+        print("---------listen_forever:" + str(listen_forever))
+        self.listen_forever = listen_forever
 
     @staticmethod
     def get_msg_type(msg: str) -> MsgType:
@@ -51,6 +52,7 @@ class Server:
             print("listening forever")
             self.reset_states()
         else:
+            print("stop listening")
             loop.stop()  # stop the loop on any exception.
 
     async def _handle_client(self, reader, writer):

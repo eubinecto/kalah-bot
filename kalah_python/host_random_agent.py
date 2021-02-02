@@ -9,7 +9,7 @@ def main():
     # optional args
     parser.add_argument("--host", default=HOST, type=str)
     parser.add_argument("--port", default=PORT, type=int)
-    parser.add_argument("--listen_forever", default=False, type=bool)
+    parser.add_argument("--listen_forever", dest='listen_forever', default=False, action='store_true')
     args = parser.parse_args()
     server = Server(agent=RandomAgent(), listen_forever=args.listen_forever)
     server.start_hosting(host=args.host, port=args.port)
