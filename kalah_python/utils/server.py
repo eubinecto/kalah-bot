@@ -69,7 +69,9 @@ class Server:
             if not msg:
                 raise ConnectionResetError
             logger.info(msg)
-            self._interpret_msg(msg.strip())
+            for msg_split in msg.split("\n"):
+                if msg_split:
+                    self._interpret_msg(msg.strip())
             if self.agent.action_is_registered():  # check if an action is registered.
                 try:
                     # make a move on the server side.
@@ -106,11 +108,11 @@ class Server:
         """
         # parse the message to find out which side of the board
         # the agent should start playing the game from.
-        north_or_south = start_msg.split(";")[-1]
-        if north_or_south == "North":
+        north_or_south = start_msg.split(";")[-1].strip()
+        if "North" in north_or_south:
             # start the match as a 1st player
             self.agent.new_match_2nd()
-        elif north_or_south == "South":
+        elif "South" in north_or_south:
             # start the match as a 2nd player
             self.agent.new_match_1st()
         else:
